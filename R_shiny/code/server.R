@@ -449,22 +449,14 @@ server <- function(input, output, session) {
       # read data on nodes and edges
       complete_nodelist <- nodelist_table
       complete_edgelist <- edgelist_table
-      nodes <- temp.nodelist_for_subgraph[,1:(ncol(temp.nodelist_for_subgraph)-1)]
+      nodes <- temp.nodelist_for_subgraph
       edges <- temp.edgelist_for_subgraph
 
      
       
-      # tooltip for nodes: calculate "degree", create html String containing tooltip information: label, rel_pos, rel_pos_neg, degree, then create additional column "title" in nodes
-      nodes_tooltip <- nodes[, c(1, 3, 4)]
-      nodes_tooltip$degree <- c(rep(0))
+      # tooltip for nodes: create html String containing tooltip information: label, rel_pos, rel_pos_neg, degree, then create additional column "title" in nodes
+      nodes_tooltip <- nodes[, c(1, 3, 4, ncol(nodes))] 
       
-      #for (index in 1:nrow(edges)) {
-      #  nodes_tooltip$degree[which(nodes$id == complete_edgelist$from[index])] <- nodes_tooltip$degree[which(nodes$id == complete_edgelist$from[index])] + 1
-      #  nodes_tooltip$degree[which(nodes$id == complete_edgelist$to[index])] <- nodes_tooltip$degree[which(nodes$id == complete_edgelist$to[index])] + 1
-      #}
-      for(ids in nodes$id){
-        nodes_tooltip$degree[which(nodes$id == ids)] <- nrow(complete_edgelist[which(complete_edgelist$from == ids),]) + nrow(complete_edgelist[which(complete_edgelist$to == ids),])
-      }
       
       html_string <- ""
       for (index in 1:ncol(nodes_tooltip)) {
@@ -477,6 +469,7 @@ server <- function(input, output, session) {
       edges_tooltip <- edges[, c(1, 2, 4, 5)]
       edges_tooltip$from_to <- c(rep(0))
       
+      # replace ids with labels for showing in the table
       for(idx in 1:nrow(edges_tooltip)){
         edges_tooltip$from[idx] <- complete_nodelist$label[which(complete_nodelist$id==edges_tooltip$from[idx])]
         edges_tooltip$to[idx] <- complete_nodelist$label[which(complete_nodelist$id==edges_tooltip$to[idx])]
@@ -492,9 +485,10 @@ server <- function(input, output, session) {
       }
       edges_tooltip$from_to <- html_string
       edges$title <- edges_tooltip$from_to
-
+      print(nodes$label)
       
       # plot the graph
+      set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
       visNetwork(nodes, edges) %>%
         visInteraction(zoomView = TRUE, navigationButtons = TRUE, multiselect = TRUE, hover = TRUE) %>%
         # long click on nodes to select multiple nodes or by "Ctrl" + Click
@@ -2004,7 +1998,7 @@ server <- function(input, output, session) {
         # check if the connected nodes are in our nodelist
         for(i in which(edgelist$from == ids)){
           # if node id is not yet in table, rbind it to table and save in nodelist_for_graph
-          if(!(edgelist$to[i] %in% nodelist_for_table$id)){
+          if(!(edgelist$to[i] %in% nodelist_for_graph$id)){
             nodelist_for_graph <- rbind(nodelist_for_graph, nodelist[which(nodelist$id==edgelist$to[i]), ])
           }
         }
@@ -2014,7 +2008,7 @@ server <- function(input, output, session) {
         # check if the connected nodes are in our nodelist
         for(i in which(edgelist$to == ids)){
           # if node id is not yet in table, rbind it to table and save in nodelist_for_graph
-          if(!(edgelist$from[i] %in% nodelist_for_table$id)){
+          if(!(edgelist$from[i] %in% nodelist_for_graph$id)){
             nodelist_for_graph <- rbind(nodelist_for_graph, nodelist[which(nodelist$id==edgelist$from[i]), ])
           }
         }
@@ -2036,7 +2030,7 @@ server <- function(input, output, session) {
         table,
         rownames = FALSE,
         extensions = "FixedColumns",
-        options = list(scrollX = TRUE, fixedColumns = list(leftColumns = 1))
+        options = list(scrollX = TRUE, fixedColumns = list(leftColumns = 2))
       )
     }
   )
@@ -2051,13 +2045,6 @@ server <- function(input, output, session) {
     edgelist <- edgelist_table
     nodelist_small <- temp.nodelist_for_table
     complete_nodelist <- nodelist_table
-    
-    # translate the node ids in columns "from" and "to" into meaningful node labels which can be retrieved from the nodelist
-    #for(index in 1:nrow(edgelist)){
-    #  print(index)
-    #  edgelist$from[index] <- nodelist[which(nodelist$id == edgelist[index, 1]), 1]
-    #  edgelist$to[index] <- nodelist[which(nodelist$id == edgelist[index, 2]), 1]
-    #}
     
     # vector to save the rows in that contain a node we want
     rows <- c()
@@ -2077,6 +2064,8 @@ server <- function(input, output, session) {
     
     edgelist <- edgelist[rows,]
     temp.edgelist_for_subgraph <<- edgelist
+    
+    # replace ids with labels for showing in the table
     for(idx in 1:nrow(edgelist)){
       edgelist$from[idx] <- complete_nodelist$label[which(complete_nodelist$id==edgelist$from[idx])]
       edgelist$to[idx] <- complete_nodelist$label[which(complete_nodelist$id==edgelist$to[idx])]
@@ -2089,7 +2078,6 @@ server <- function(input, output, session) {
   # create data table with node attributes ----------------------------------
   output$edge_feature_overview <- renderDataTable({
     table <- present_data_on_edges()
-    print(table)
     datatable(
       table,
       rownames = FALSE,
