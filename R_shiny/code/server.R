@@ -4,15 +4,6 @@
 
 server <- function(input, output, session) {
   
-  # capture value of slider
-  sliderValue <- reactive({
-    input$slider
-  })
-  # capture value of radio button
-  radioValue <- reactive({
-    input$radio
-  })
-  
   ##################################
   ####### global variables #########
   ##################################
@@ -21,10 +12,6 @@ server <- function(input, output, session) {
   nodelist_table <- data.frame()
   edgelist_table <- data.frame()
   
-  temp.nodelist_for_subgraph <- data.frame()
-  temp.edgelist_for_subgraph <- data.frame()
-  
-  temp.nodelist_for_table <- data.frame()
   
   # empty data tables that will be used to save user modification actions and thus allow the undo function
   modification_history <- data.frame(action = c(0), element = c(0))
@@ -160,6 +147,10 @@ server <- function(input, output, session) {
               temporary_added_node_feature <<- nodelist_table[0, ]
               temporary_added_node_feature[nrow(temporary_added_node_feature) + 1, ] <<- c("label_value", "id_value", rep(0, length(colnames(nodelist_table)) - 2))
               temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)] <<- as.numeric(temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)])
+              
+              # update max Slider value to amount of nodes
+              max = length(nodelist_table[[1]])
+              updateSliderInput(session, "slider", max=max)
               
               # disable third tab
               shinyjs::js$disableTab("Interact")
@@ -306,7 +297,6 @@ server <- function(input, output, session) {
             
             # check 8: the graph must be homogeneous, all edges of the same type
             if (anyNA.data.frame(edgelist)) {
-              print("TEST")
               output$error_upload_edges <- renderUI({
                 HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The graph has edges of different types. You must enter a homogeneous graph with all edges of the same type! </span>")
               })
@@ -429,34 +419,42 @@ server <- function(input, output, session) {
     retrain_not_available()
   })
   
-  ##################################
-  ###   Initialize sliding bar  ####
-  ##################################
-  
-  observeEvent(input$upload_nodes, {
-    max = length(nodelist_table[[1]])
-    updateSliderInput(session, "slider", max=max)
-  })
+ 
   
   ##################################
   ######### Network Graph ##########
   ##################################
   
+#  create_tooltip <- eventReactive({
+#    input$upload_edges
+#    input$slider
+#    input$radio
+#  },{
+#    sub_dataset_list <- calculate_smaller_node_and_edge_list()
+#    nodes <- sub_dataset_list$nodes_graph
+#    edges <- sub_dataset_list$edges_graph
+#    
+#  })
+  
   # observe upload of edges to update the graph if new data was uploaded ----------------------------------
-  observeEvent(c(input$upload_edges, input$slider,input$radio), {
+  observeEvent(c( 
+    # the events that trigger this
+    input$upload_edges,
+    input$slider,
+    input$radio
+    ), {
     # create graph element
     output$graph <- renderVisNetwork({
       # read data on nodes and edges
       complete_nodelist <- nodelist_table
       complete_edgelist <- edgelist_table
-      nodes <- temp.nodelist_for_subgraph
-      edges <- temp.edgelist_for_subgraph
-
-     
+      print(isTruthy(calculate_smaller_node_and_edge_list()))
+      sub_dataset_list <- calculate_smaller_node_and_edge_list()
+      nodes <- sub_dataset_list$nodes_graph
+      edges <- sub_dataset_list$edges_graph
       
       # tooltip for nodes: create html String containing tooltip information: label, rel_pos, rel_pos_neg, degree, then create additional column "title" in nodes
       nodes_tooltip <- nodes[, c(1, 3, 4, ncol(nodes))] 
-      
       
       html_string <- ""
       for (index in 1:ncol(nodes_tooltip)) {
@@ -485,7 +483,6 @@ server <- function(input, output, session) {
       }
       edges_tooltip$from_to <- html_string
       edges$title <- edges_tooltip$from_to
-      print(nodes$label)
       
       # plot the graph
       set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
@@ -516,32 +513,48 @@ server <- function(input, output, session) {
   ##################################
   
   # Initialize first dropdown of modification options ----------------------------------
-  observeEvent(input$upload_edges, {
-    nodelist <- nodelist_table
-    node_labels <- nodelist$label
+  observeEvent(ignoreInit = T,{ # I dont know why it need ignoreInit, but is fails without it so....
+    input$upload_edges
+    input$radio
+    input$slider
+    }, {
+    list <- calculate_smaller_node_and_edge_list()
+    node_labels <- list$nodes_table$label
+    edge_list <- list$edges_graph
+    node_list <- list$nodes_graph
     
     # input for node deletion
     updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
+    #calculate_smaller_node_and_edge_list()
     
     # first input for edge addition
     updateSelectizeInput(session, "choose_first_connected_node_add", choices = node_labels, server = TRUE)
+    #calculate_smaller_node_and_edge_list()
     
     # first input for edge deletion - only include node labels which have an edge
-    nodes_with_edges <- unique(c(edgelist_table$from, edgelist_table$to))
-    node_labels <- c()
+    nodes_with_edges <- unique(c(edge_list$from, edge_list$to))
+    node_labels2 <- c()
     for (index in 1:length(nodes_with_edges)) {
-      next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
-      node_labels <- c(node_labels, next_node)
+      next_node <- node_list$label[which(node_list$id == nodes_with_edges[index])]
+      node_labels2 <- c(node_labels2, next_node)
     }
+    # only let the user select the nodes that were selected (not all that are shown in the graph vis)
+    node_labels <- node_labels[node_labels %in% node_labels2]
     node_labels <- sort(node_labels)
     
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
   })
   
   # Initialize second dropdown of modification options ----------------------------------
-  observeEvent(c(input$upload_edges, input$choose_first_connected_node_delete, input$choose_first_connected_node_add), {
-    nodelist <- nodelist_table
-    edgelist <- edgelist_table
+  observeEvent(ignoreInit = T,{ # the events that trigger this
+    input$upload_edges 
+    input$choose_first_connected_node_delete 
+    input$choose_first_connected_node_add
+    }, {
+      
+    list <- calculate_smaller_node_and_edge_list()  
+    edgelist <- list$edges_graph
+    nodelist <- list$nodes_graph
     node_labels <- nodelist$label
     
     # second input for edge deletion - only containing nodes that are connected to the first selected node
@@ -1198,7 +1211,15 @@ server <- function(input, output, session) {
   ##################################
   
   # disable undo-button when modification_history is empty, enable undo-button when there are actions to reverse ----------------------------------
-  observeEvent(c(input$undo, input$upload_edges, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion), {
+  observeEvent({ # the events that trigger this
+    input$undo
+    input$upload_edges
+    input$confirm_edge_deletion
+    input$confirm_edge_addition
+    input$confirm_node_addition
+    input$confirm_node_deletion
+    }, {
+      
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
     } else {
@@ -1545,7 +1566,15 @@ server <- function(input, output, session) {
   # The following code has to be placed after the modification options to ensure that when e.g. an edge is added, the edgelist_table is updated before the degree is calculated to color the nodes
   
   # system reaction depending on the selected attribute to color the nodes by ---------------------------------- 
-  observeEvent(c(input$color_nodes, input$upload_edges, input$undo, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion), {
+  observeEvent({ # the events that trigger this
+    input$color_nodes
+    input$upload_edges
+    input$undo
+    input$confirm_edge_deletion
+    input$confirm_edge_addition
+    input$confirm_node_addition
+    input$confirm_node_deletion
+    }, {
     
     nodes <- nodelist_table
     edges <- edgelist_table
@@ -1963,31 +1992,40 @@ server <- function(input, output, session) {
     }
   })
   
-  ##################################
-  ######## Data Table Nodes ########
-  ##################################
+  ############################################
+  ######## Data Table Nodes and Edges ########
+  ############################################
   
-  
-  # reactive expression that extracts and prepares the current data on nodes ----------------------------------
-  # @return nodelist in alphabetical order, including a column with the degree of nodes
-  present_data_on_nodes <- eventReactive(c(1, input$upload_edges, input$undo, input$confirm_node_deletion, input$confirm_node_addition, input$slider, input$radio), {
-    
+  # reactive expression that extracts and prepares the current data on nodes and edges ----------------------------------
+  # @return list with data.frame of nodes for presenting in a table, 
+  #         data.frame of nodes for graph vis, and data.frame of edges for table and graph vis
+  calculate_smaller_node_and_edge_list <- eventReactive(c(
+    # the events that trigger this 
+    input$slider,
+    input$radio,
+    input$confirm_node_deletion,
+    input$confirm_edge_deletion,
+    input$confirm_node_addition,
+    input$confirm_edge_addition,
+    input$undo)
+    ,{ 
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     
+    ### create sub node table ###
+   
+    # count amount of interactions in this degree column
     nodelist$degree <- c(rep(0))
     
     # count number of interaction partner for each node
     for(ids in nodelist$id){
       nodelist$degree[which(nodelist$id == ids)] <- nrow(edgelist[which(edgelist$from == ids),]) + nrow(edgelist[which(edgelist$to == ids),])
-    }
-   
+    }  
+    
     # sort nodelist by XAI values (method is selected by radiobutton)
-    nodelist_for_table <- nodelist[order(nodelist[[radioValue()]], decreasing = TRUE),]
+    nodelist_for_table <- nodelist[order(nodelist[[input$radio]], decreasing = TRUE),]
     # only show the amount of nodes selected by the sliding bar
-    nodelist_for_table <- nodelist_for_table[1:sliderValue(),] 
-    # show only the selected amount of nodes in the table
-    temp.nodelist_for_table <<- nodelist_for_table
+    nodelist_for_table <- nodelist_for_table[1:input$slider,] 
     
     # for plotting the nodes, we also need the nodes they are connected to
     nodelist_for_graph <- nodelist_for_table #we want to make the table for plotting bigger
@@ -2015,41 +2053,12 @@ server <- function(input, output, session) {
       }           
     }
     
-    temp.nodelist_for_subgraph <<- nodelist_for_graph
-    
-    
-    
-    # this removes the "ID" column from being displayed (this information is unnecessary for the user) )
-    nodelist_for_table <- nodelist_for_table[, -2]
-  })
-  
-  # create data table with node features ----------------------------------
-  output$feature_overview <- renderDataTable({
-      table <- present_data_on_nodes()
-      datatable(
-        table,
-        rownames = FALSE,
-        extensions = "FixedColumns",
-        options = list(scrollX = TRUE, fixedColumns = list(leftColumns = 2))
-      )
-    }
-  )
-  
-  ##################################
-  ######## Data Table Edges ########
-  ##################################
-  
-  # reactive expression that extracts and prepares the current data on edges ----------------------------------
-  # @return edgelist in alphabetical order based on column "from"
-  present_data_on_edges <- eventReactive(c(1, input$upload_edges, input$undo, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$slider, input$radio), {
-    edgelist <- edgelist_table
-    nodelist_small <- temp.nodelist_for_table
-    complete_nodelist <- nodelist_table
+    ### create sub edge table ###    
     
     # vector to save the rows in that contain a node we want
     rows <- c()
     # iterate over our nodes
-    for(ids in nodelist_small$id){
+    for(ids in nodelist_for_table$id){
       # check if there is a entry in edgelist$from
       if(length(which(edgelist$from == ids)) > 0){
         rows <- append(rows, which(edgelist$from == ids))
@@ -2063,21 +2072,41 @@ server <- function(input, output, session) {
     rows <- unique(rows) 
     
     edgelist <- edgelist[rows,]
-    temp.edgelist_for_subgraph <<- edgelist
+    edgelist_for_graph <- edgelist
     
     # replace ids with labels for showing in the table
     for(idx in 1:nrow(edgelist)){
-      edgelist$from[idx] <- complete_nodelist$label[which(complete_nodelist$id==edgelist$from[idx])]
-      edgelist$to[idx] <- complete_nodelist$label[which(complete_nodelist$id==edgelist$to[idx])]
+      edgelist$from[idx] <- nodelist$label[which(nodelist$id==edgelist$from[idx])]
+      edgelist$to[idx] <- nodelist$label[which(nodelist$id==edgelist$to[idx])]
     }
     
     edgelist <- edgelist[order(edgelist$from), ]
     edgelist <- edgelist[, c(1, 2, 4:ncol(edgelist))]
-  })
+    
+    # this will be the dataset to present in table (no id column)
+    nodelist_for_table <- nodelist_for_table[, -2]
+    
+    sub_dataset <- list("nodes_table" = nodelist_for_table, "nodes_graph" = nodelist_for_graph, "edges_table" = edgelist, "edges_graph" = edgelist_for_graph)
+  }
+  )
   
+  # create data table with node features ----------------------------------
+  output$feature_overview <- renderDataTable({
+      table <- calculate_smaller_node_and_edge_list()
+      table <- table$nodes_table
+      datatable(
+        table,
+        rownames = FALSE,
+        extensions = "FixedColumns",
+        options = list(scrollX = TRUE, fixedColumns = list(leftColumns = 2))
+      )
+    }
+  )
+
   # create data table with node attributes ----------------------------------
   output$edge_feature_overview <- renderDataTable({
-    table <- present_data_on_edges()
+    table <- calculate_smaller_node_and_edge_list()
+    table <- table$edges_table
     datatable(
       table,
       rownames = FALSE,
