@@ -448,7 +448,6 @@ server <- function(input, output, session) {
       # read data on nodes and edges
       complete_nodelist <- nodelist_table
       complete_edgelist <- edgelist_table
-      print(isTruthy(calculate_smaller_node_and_edge_list()))
       sub_dataset_list <- calculate_smaller_node_and_edge_list()
       nodes <- sub_dataset_list$nodes_graph
       edges <- sub_dataset_list$edges_graph
@@ -657,9 +656,9 @@ server <- function(input, output, session) {
     update_nodes$title <- update_nodes_tooltip$title
     
     # update graph
-    visNetworkProxy("graph") %>%
-      visUpdateNodes(nodes = update_nodes) %>%
-      visRemoveNodes(id = deleted_node$id)
+    #visNetworkProxy("graph") %>%
+    #  visUpdateNodes(nodes = update_nodes) %>%
+    #  visRemoveNodes(id = deleted_node$id)
     
     # update global variables for modification history
     modification_history[nrow(modification_history) + 1, ] <<- c("deleted", "node")
@@ -667,7 +666,8 @@ server <- function(input, output, session) {
     all_deleted_nodes_edges[[length(all_deleted_nodes_edges) + 1]] <<- deleted_nodes_edges
     
     # update list of nodes for node deletion
-    node_labels <- nodelist_table$label
+    #node_labels <- nodelist_table$label
+    node_labels <- update_nodes$label
     updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
     
     # update list of nodes for edge addition
@@ -733,9 +733,9 @@ server <- function(input, output, session) {
     update_nodes$title <- update_nodes_tooltip$title
     
     # update graph
-    visNetworkProxy("graph") %>%
-      visUpdateNodes(nodes = update_nodes) %>%
-      visRemoveEdges(id = deleted_edge$id)
+    #visNetworkProxy("graph") %>%
+    #  visUpdateNodes(nodes = update_nodes) %>%
+    #  visRemoveEdges(id = deleted_edge$id)
     
     # update first input selection for edge deletion - only node labels which have an edge
     nodes_with_edges <- unique(c(edgelist_table$from, edgelist_table$to))
@@ -899,10 +899,10 @@ server <- function(input, output, session) {
         update_nodes$title <- update_nodes_tooltip$title
         
         # update graph
-        visNetworkProxy("graph") %>%
-          visUpdateNodes(nodes = update_nodes) %>%
-          visUpdateEdges(edges = added_edge) %>%
-          visSelectEdges(id = added_edge$id[1])
+        #visNetworkProxy("graph") %>%
+        # visUpdateNodes(nodes = update_nodes) %>%
+        #  visUpdateEdges(edges = added_edge) %>%
+        #  visSelectEdges(id = added_edge$id[1])
         
         # clear numeric input
         updateNumericInput(session, "edgefeature_value", value = 0)
@@ -1118,9 +1118,9 @@ server <- function(input, output, session) {
             added_node$title <- added_node_tooltip$title
             
             # update graph
-            visNetworkProxy("graph") %>%
-              visUpdateNodes(nodes = added_node) %>%
-              visSelectNodes(id = added_node$id[1])
+            #visNetworkProxy("graph") %>%
+            #  visUpdateNodes(nodes = added_node) %>%
+            #  visSelectNodes(id = added_node$id[1])
             
             # update global nodeslist table
             nodelist_table <<- rbind(nodelist_table, temporary_added_node_feature)
@@ -1298,10 +1298,10 @@ server <- function(input, output, session) {
     add_edges$title <- edges_tooltip$title
     
     # update graph
-    visNetworkProxy("graph") %>%
-      visUpdateNodes(nodes = update_nodes) %>%
-      visUpdateEdges(edges = add_edges) %>%
-      visSelectNodes(id = add_node$id[1])
+    #visNetworkProxy("graph") %>%
+    #  visUpdateNodes(nodes = update_nodes) %>%
+    #  visUpdateEdges(edges = add_edges) %>%
+    #  visSelectNodes(id = add_node$id[1])
     
     # remove node from global variables of modification history
     modification_history <<- modification_history[-c(nrow(modification_history)), ]
@@ -1382,10 +1382,10 @@ server <- function(input, output, session) {
     update_nodes$title <- update_nodes_tooltip$title
     
     # update graph
-    visNetworkProxy("graph") %>%
-      visUpdateNodes(nodes = update_nodes) %>%
-      visUpdateEdges(edges = add_edge) %>%
-      visSelectEdges(id = add_edge$id[1])
+    #visNetworkProxy("graph") %>%
+    #  visUpdateNodes(nodes = update_nodes) %>%
+    #  visUpdateEdges(edges = add_edge) %>%
+    #  visSelectEdges(id = add_edge$id[1])
     
     # remove edge from global variables of modification history
     modification_history <<- modification_history[-c(nrow(modification_history)), ]
@@ -1458,9 +1458,9 @@ server <- function(input, output, session) {
     update_nodes$title <- update_nodes_tooltip$title
     
     # update graph
-    visNetworkProxy("graph") %>%
-      visUpdateNodes(nodes = update_nodes) %>%
-      visRemoveEdges(id = delete_edge$id)
+    #visNetworkProxy("graph") %>%
+    #  visUpdateNodes(nodes = update_nodes) %>%
+    #  visRemoveEdges(id = delete_edge$id)
     
     # remove edge from global variables of modification history
     modification_history <<- modification_history[-c(nrow(modification_history)), ]
@@ -1533,8 +1533,8 @@ server <- function(input, output, session) {
     nodelist_table <<- nodelist_table[-c(which(nodelist_table$label == delete_node$label)), ]
     
     # update graph
-    visNetworkProxy("graph") %>%
-      visRemoveNodes(id = delete_node$id)
+    #visNetworkProxy("graph") %>%
+    #  visRemoveNodes(id = delete_node$id)
     
     # remove node from global variables of modification history
     modification_history <<- modification_history[-c(nrow(modification_history)), ]
@@ -1600,8 +1600,8 @@ server <- function(input, output, session) {
         nodes$color.hover.border <- c(rep("red", nrow(nodes)))
         
         # update graph
-        visNetworkProxy("graph") %>%
-          visUpdateNodes(nodes = nodes)
+        #visNetworkProxy("graph") %>%
+        #  visUpdateNodes(nodes = nodes)
         
         # empty legend content for the case that another data set was uploaded before and this function was used during that time
         output$lowest_rel_pos <- renderUI({
@@ -1679,8 +1679,8 @@ server <- function(input, output, session) {
         })
         
         # update graph
-        visNetworkProxy("graph") %>%
-          visUpdateNodes(nodes = nodes)
+        #visNetworkProxy("graph") %>%
+        #  visUpdateNodes(nodes = nodes)
       }
       
       ##########
@@ -1706,8 +1706,8 @@ server <- function(input, output, session) {
         nodes$color.hover.border <- c(rep("red", nrow(nodes)))
         
         # update graph
-        visNetworkProxy("graph") %>%
-          visUpdateNodes(nodes = nodes)
+        #visNetworkProxy("graph") %>%
+        #  visUpdateNodes(nodes = nodes)
         
         # empty legend content for negative values for the case that another data set was uploaded before and this function was used during that time
         output$neg_highest_relevance <- renderUI({
@@ -1858,8 +1858,8 @@ server <- function(input, output, session) {
         })
         
         # update graph
-        visNetworkProxy("graph") %>%
-          visUpdateNodes(nodes = nodes)
+        #visNetworkProxy("graph") %>%
+        #  visUpdateNodes(nodes = nodes)
       }
       
       ##########
@@ -1954,8 +1954,8 @@ server <- function(input, output, session) {
       })
       
       # update graph
-      visNetworkProxy("graph") %>%
-        visUpdateNodes(nodes = nodes)
+      #visNetworkProxy("graph") %>%
+      #  visUpdateNodes(nodes = nodes)
       
       # clear any printed messages that inform the user on errors regarding the color nodes function
       output$error_only_zeros <- renderUI({
@@ -1977,8 +1977,8 @@ server <- function(input, output, session) {
       nodes$color.hover.border <- c(rep("red", nrow(nodes)))
       
       # update graph
-      visNetworkProxy("graph") %>%
-        visUpdateNodes(nodes = nodes)
+      #visNetworkProxy("graph") %>%
+      #  visUpdateNodes(nodes = nodes)
       
       # clear any printed messages that inform the user on errors regarding the color nodes function
       output$error_only_zeros <- renderUI({
