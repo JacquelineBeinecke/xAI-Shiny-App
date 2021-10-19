@@ -12,6 +12,12 @@ server <- function(input, output, session) {
   nodelist_table <- data.frame()
   edgelist_table <- data.frame()
   
+  # this contains all selected nodes and their corresponding edges
+  small_nodelist_for_table <- data.frame()
+  small_edgelist <- data.frame()
+  
+  # this contains more than the selected nodes, because we also need to visualize the neighbouring nodes
+  small_nodelist_for_graph <- data.frame()
   
   # empty data tables that will be used to save user modification actions and thus allow the undo function
   modification_history <- data.frame(action = c(0), element = c(0))
@@ -425,16 +431,6 @@ server <- function(input, output, session) {
   ######### Network Graph ##########
   ##################################
   
-#  create_tooltip <- eventReactive({
-#    input$upload_edges
-#    input$slider
-#    input$radio
-#  },{
-#    sub_dataset_list <- calculate_smaller_node_and_edge_list()
-#    nodes <- sub_dataset_list$nodes_graph
-#    edges <- sub_dataset_list$edges_graph
-#    
-#  })
   
   # observe upload of edges to update the graph if new data was uploaded ----------------------------------
   observeEvent(c( 
@@ -443,17 +439,19 @@ server <- function(input, output, session) {
     input$slider,
     input$radio
     ), {
+      
     # create graph element
     output$graph <- renderVisNetwork({
       # read data on nodes and edges
       complete_nodelist <- nodelist_table
       complete_edgelist <- edgelist_table
-      sub_dataset_list <- calculate_smaller_node_and_edge_list()
-      nodes <- sub_dataset_list$nodes_graph
-      edges <- sub_dataset_list$edges_graph
+      
+      nodes <- small_nodelist_for_graph
+      edges <- small_edgelist
       
       # tooltip for nodes: create html String containing tooltip information: label, rel_pos, rel_pos_neg, degree, then create additional column "title" in nodes
-      nodes_tooltip <- nodes[, c(1, 3, 4, ncol(nodes))] 
+      nodes_tooltip <- nodes[, c(1, 3, 4, ncol(nodes))]
+      
       
       html_string <- ""
       for (index in 1:ncol(nodes_tooltip)) {
@@ -512,15 +510,15 @@ server <- function(input, output, session) {
   ##################################
   
   # Initialize first dropdown of modification options ----------------------------------
-  observeEvent(ignoreInit = T,{ # I dont know why it need ignoreInit, but is fails without it so....
+  observeEvent(ignoreInit = T,{
     input$upload_edges
     input$radio
     input$slider
     }, {
     list <- calculate_smaller_node_and_edge_list()
-    node_labels <- list$nodes_table$label
-    edge_list <- list$edges_graph
-    node_list <- list$nodes_graph
+    node_labels <- small_nodelist_for_table$label
+    edge_list <- small_edgelist
+    node_list <- small_nodelist_for_graph
     
     # input for node deletion
     updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
@@ -552,8 +550,8 @@ server <- function(input, output, session) {
     }, {
       
     list <- calculate_smaller_node_and_edge_list()  
-    edgelist <- list$edges_graph
-    nodelist <- list$nodes_graph
+    edgelist <- small_edgelist
+    nodelist <- small_nodelist_for_graph
     node_labels <- nodelist$label
     
     # second input for edge deletion - only containing nodes that are connected to the first selected node
@@ -622,6 +620,8 @@ server <- function(input, output, session) {
     
     # update global nodelist
     nodelist_table <<- nodelist_table[-c(which(nodelist_table$label == deleted_node$label)), ]
+    small_nodelist_for_graph <<- small_nodelist_for_graph[-c(which(small_nodelist_for_graph$label == deleted_node$label)), ]
+    small_nodelist_for_table <<- small_nodelist_for_table[-c(which(small_nodelist_for_table$label == deleted_node$label)), ]
     
     # update global edgelist and save deleted edges from node in a data frame
     deleted_nodes_edges <- data.frame()
@@ -639,10 +639,12 @@ server <- function(input, output, session) {
     updateSliderInput(session, "slider", max=max_nodes)
     
     # update tooltip information of nodes, as their degree has changed
-    update_nodes <- nodelist_table
+    #update_nodes <- nodelist_table
+    update_nodes <- small_nodelist_for_graph
+    
     update_nodes_tooltip <- update_nodes[, c(1, 3, 4)]
     update_nodes_tooltip$degree <- c(rep(0))
-    
+    print(update_nodes_tooltip)
     for (index in 1:nrow(edgelist_table)) {
       update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] + 1
       update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] + 1
@@ -656,9 +658,9 @@ server <- function(input, output, session) {
     update_nodes$title <- update_nodes_tooltip$title
     
     # update graph
-    #visNetworkProxy("graph") %>%
-    #  visUpdateNodes(nodes = update_nodes) %>%
-    #  visRemoveNodes(id = deleted_node$id)
+    visNetworkProxy("graph") %>%
+      visUpdateNodes(nodes = update_nodes) %>%
+      visRemoveNodes(id = deleted_node$id)
     
     # update global variables for modification history
     modification_history[nrow(modification_history) + 1, ] <<- c("deleted", "node")
@@ -2014,13 +2016,11 @@ server <- function(input, output, session) {
     
     ### create sub node table ###
    
-    # count amount of interactions in this degree column
-    nodelist$degree <- c(rep(0))
-    
     # count number of interaction partner for each node
+    nodelist$degree <- c(rep(0)) # initialze "degree" column
     for(ids in nodelist$id){
       nodelist$degree[which(nodelist$id == ids)] <- nrow(edgelist[which(edgelist$from == ids),]) + nrow(edgelist[which(edgelist$to == ids),])
-    }  
+    } 
     
     # sort nodelist by XAI values (method is selected by radiobutton)
     nodelist_for_table <- nodelist[order(nodelist[[input$radio]], decreasing = TRUE),]
@@ -2052,10 +2052,14 @@ server <- function(input, output, session) {
         }
       }           
     }
+    # save in global variable
+    small_nodelist_for_table <<- nodelist_for_table
+    small_nodelist_for_graph <<- nodelist_for_graph
+    
     
     ### create sub edge table ###    
     
-    # vector to save the rows in that contain a node we want
+    # vector to save the rows that contain a node we want
     rows <- c()
     # iterate over our nodes
     for(ids in nodelist_for_table$id){
@@ -2068,32 +2072,23 @@ server <- function(input, output, session) {
         rows <- append(rows, which(edgelist$to == ids))
       }               
     }
-    # some rows could have been counted double to only save unique values
+    # some rows could have been counted double so only save unique values
     rows <- unique(rows) 
-    
+    # select rows
     edgelist <- edgelist[rows,]
-    edgelist_for_graph <- edgelist
-    
-    # replace ids with labels for showing in the table
-    for(idx in 1:nrow(edgelist)){
-      edgelist$from[idx] <- nodelist$label[which(nodelist$id==edgelist$from[idx])]
-      edgelist$to[idx] <- nodelist$label[which(nodelist$id==edgelist$to[idx])]
+  
+    # save in global variable
+    small_edgelist <<- edgelist
     }
-    
-    edgelist <- edgelist[order(edgelist$from), ]
-    edgelist <- edgelist[, c(1, 2, 4:ncol(edgelist))]
-    
-    # this will be the dataset to present in table (no id column)
-    nodelist_for_table <- nodelist_for_table[, -2]
-    
-    sub_dataset <- list("nodes_table" = nodelist_for_table, "nodes_graph" = nodelist_for_graph, "edges_table" = edgelist, "edges_graph" = edgelist_for_graph)
-  }
   )
   
   # create data table with node features ----------------------------------
   output$feature_overview <- renderDataTable({
-      table <- calculate_smaller_node_and_edge_list()
-      table <- table$nodes_table
+      # update data table, every time smaller node and edge list gets updated
+      calculate_smaller_node_and_edge_list()
+    
+      table <- small_nodelist_for_table
+      table <- table[, -2]
       datatable(
         table,
         rownames = FALSE,
@@ -2105,8 +2100,21 @@ server <- function(input, output, session) {
 
   # create data table with node attributes ----------------------------------
   output$edge_feature_overview <- renderDataTable({
-    table <- calculate_smaller_node_and_edge_list()
-    table <- table$edges_table
+    # update data table, every time smaller node and edge list gets updated
+    calculate_smaller_node_and_edge_list()
+    
+    table <- small_edgelist
+    
+    # replace ids with labels for showing in the table
+    for(idx in 1:nrow(table)){
+      table$from[idx] <- nodelist_table$label[which(nodelist_table$id==table$from[idx])]
+      table$to[idx] <- nodelist_table$label[which(nodelist_table$id==table$to[idx])]
+    }
+    
+    # sort by from label and remove all ID columns for vis
+    table <- table[order(table$from), ]
+    table <- table[, c(1, 2, 4:ncol(table))]
+    
     datatable(
       table,
       rownames = FALSE,
