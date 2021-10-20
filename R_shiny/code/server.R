@@ -449,8 +449,15 @@ server <- function(input, output, session) {
       nodes <- small_nodelist_for_graph
       edges <- small_edgelist
       
+      # calculate node degree (amount of edges connected to it)
+      degree <- c() # initialze "degree" vector
+      for(i in 1:length(nodes$id)){
+        degree[i] <- nrow(complete_edgelist[which(complete_edgelist$from == nodes$id[i]),]) + nrow(complete_edgelist[which(complete_edgelist$to == nodes$id[i]),])
+      } 
+      degree <- data.frame(degree)
+      
       # tooltip for nodes: create html String containing tooltip information: label, rel_pos, rel_pos_neg, degree, then create additional column "title" in nodes
-      nodes_tooltip <- nodes[, c(1, 3, 4, ncol(nodes))]
+      nodes_tooltip <- cbind(nodes[, c(1, 3, 4)], degree)
       
       
       html_string <- ""
@@ -639,17 +646,18 @@ server <- function(input, output, session) {
     updateSliderInput(session, "slider", max=max_nodes)
     
     # update tooltip information of nodes, as their degree has changed
-    #update_nodes <- nodelist_table
     update_nodes <- small_nodelist_for_graph
     
+    # get label, rel_pos, rel_pos_neg information
     update_nodes_tooltip <- update_nodes[, c(1, 3, 4)]
-    update_nodes_tooltip$degree <- c(rep(0))
-    print(update_nodes_tooltip)
-    for (index in 1:nrow(edgelist_table)) {
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] + 1
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] + 1
-    }
     
+    update_nodes_tooltip$degree <- c(rep(0))
+    # recalculalte degree
+    for(i in 1:length(update_nodes$id)){
+      update_nodes_tooltip$degree[i] <- nrow(edgelist_table[which(edgelist_table$from == update_nodes$id[i]),]) + nrow(edgelist_table[which(edgelist_table$to == update_nodes$id[i]),])
+    } 
+    
+    #paste
     html_string <- ""
     for (index in 1:ncol(update_nodes_tooltip)) {
       html_string <- paste0(html_string, "<p><b>", colnames(update_nodes_tooltip)[index], ": ", "</b>", as.character(update_nodes_tooltip[1:nrow(update_nodes_tooltip), index]), "</p>")
@@ -689,6 +697,8 @@ server <- function(input, output, session) {
     output$info_change <- renderUI({
       HTML(paste0("<p style = 'color:green;'>", "Node with the label ", "<b>", deleted_node$label, "</b>", " was", "<b>", " removed", "</b>", " from the graph.", "</p>"))
     })
+    
+    
   })
   
   
@@ -2004,24 +2014,14 @@ server <- function(input, output, session) {
   calculate_smaller_node_and_edge_list <- eventReactive(c(
     # the events that trigger this 
     input$slider,
-    input$radio,
-    input$confirm_node_deletion,
-    input$confirm_edge_deletion,
-    input$confirm_node_addition,
-    input$confirm_edge_addition,
-    input$undo)
+    input$radio
+    )
     ,{ 
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     
     ### create sub node table ###
    
-    # count number of interaction partner for each node
-    nodelist$degree <- c(rep(0)) # initialze "degree" column
-    for(ids in nodelist$id){
-      nodelist$degree[which(nodelist$id == ids)] <- nrow(edgelist[which(edgelist$from == ids),]) + nrow(edgelist[which(edgelist$to == ids),])
-    } 
-    
     # sort nodelist by XAI values (method is selected by radiobutton)
     nodelist_for_table <- nodelist[order(nodelist[[input$radio]], decreasing = TRUE),]
     # only show the amount of nodes selected by the sliding bar
@@ -2086,7 +2086,7 @@ server <- function(input, output, session) {
   output$feature_overview <- renderDataTable({
       # update data table, every time smaller node and edge list gets updated
       calculate_smaller_node_and_edge_list()
-    
+      
       table <- small_nodelist_for_table
       table <- table[, -2]
       datatable(
@@ -2143,3 +2143,4 @@ server <- function(input, output, session) {
     contentType = "application/zip"
   )
 }
+
