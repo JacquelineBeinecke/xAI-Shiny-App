@@ -1,9 +1,4 @@
-##################################
-############ Server ##############
-##################################
-
 server <- function(input, output, session) {
-  
   ##################################
   ####### global variables #########
   ##################################
@@ -449,23 +444,7 @@ server <- function(input, output, session) {
       nodes <- small_nodelist_for_graph
       edges <- small_edgelist
       
-      # calculate node degree (amount of edges connected to it)
-      degree <- c() # initialze "degree" vector
-      for(i in 1:length(nodes$id)){
-        degree[i] <- nrow(complete_edgelist[which(complete_edgelist$from == nodes$id[i]),]) + nrow(complete_edgelist[which(complete_edgelist$to == nodes$id[i]),])
-      } 
-      degree <- data.frame(degree)
-      
-      # tooltip for nodes: create html String containing tooltip information: label, rel_pos, rel_pos_neg, degree, then create additional column "title" in nodes
-      nodes_tooltip <- cbind(nodes[, c(1, 3, 4)], degree)
-      
-      
-      html_string <- ""
-      for (index in 1:ncol(nodes_tooltip)) {
-        html_string <- paste0(html_string, "<p><b>", colnames(nodes_tooltip)[index], ": ", "</b>", as.character(nodes_tooltip[1:nrow(nodes_tooltip), index]), "</p>")
-      }
-      nodes_tooltip$title <- html_string
-      nodes$title <- nodes_tooltip$title
+      nodes$title <- update_node_tooltip(nodes, complete_edgelist)
       
       # tooltip for edges: translate node ids into label names, create html String containing tooltip information: "from-to", rel_pos, rel_pos_neg, then create additional column "title" in edges
       edges_tooltip <- edges[, c(1, 2, 4, 5)]
@@ -635,10 +614,12 @@ server <- function(input, output, session) {
     if (deleted_node$id %in% edgelist_table$from) {
       deleted_nodes_edges <- rbind(deleted_nodes_edges, edgelist_table[which(edgelist_table$from == deleted_node$id), ])
       edgelist_table <<- edgelist_table[-c(which(edgelist_table$from == deleted_node$id)), ]
+      small_edgelist <<- small_edgelist[-c(which(small_edgelist$from == deleted_node$id)), ]
     }
     if (deleted_node$id %in% edgelist_table$to) {
       deleted_nodes_edges <- rbind(deleted_nodes_edges, edgelist_table[which(edgelist_table$to == deleted_node$id), ])
       edgelist_table <<- edgelist_table[-c(which(edgelist_table$to == deleted_node$id)), ]
+      small_edgelist <<- small_edgelist[-c(which(small_edgelist$to == deleted_node$id)), ]
     }
     
     # update amount of nodes for Sliding bar
@@ -647,23 +628,7 @@ server <- function(input, output, session) {
     
     # update tooltip information of nodes, as their degree has changed
     update_nodes <- small_nodelist_for_graph
-    
-    # get label, rel_pos, rel_pos_neg information
-    update_nodes_tooltip <- update_nodes[, c(1, 3, 4)]
-    
-    update_nodes_tooltip$degree <- c(rep(0))
-    # recalculalte degree
-    for(i in 1:length(update_nodes$id)){
-      update_nodes_tooltip$degree[i] <- nrow(edgelist_table[which(edgelist_table$from == update_nodes$id[i]),]) + nrow(edgelist_table[which(edgelist_table$to == update_nodes$id[i]),])
-    } 
-    
-    #paste
-    html_string <- ""
-    for (index in 1:ncol(update_nodes_tooltip)) {
-      html_string <- paste0(html_string, "<p><b>", colnames(update_nodes_tooltip)[index], ": ", "</b>", as.character(update_nodes_tooltip[1:nrow(update_nodes_tooltip), index]), "</p>")
-    }
-    update_nodes_tooltip$title <- html_string
-    update_nodes$title <- update_nodes_tooltip$title
+    update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
     
     # update graph
     visNetworkProxy("graph") %>%
@@ -676,7 +641,6 @@ server <- function(input, output, session) {
     all_deleted_nodes_edges[[length(all_deleted_nodes_edges) + 1]] <<- deleted_nodes_edges
     
     # update list of nodes for node deletion
-    #node_labels <- nodelist_table$label
     node_labels <- update_nodes$label
     updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
     
@@ -684,7 +648,7 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "choose_first_connected_node_add", choices = node_labels, server = TRUE)
     
     # update list of nodes for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(edgelist_table$from, edgelist_table$to))
+    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
     node_labels <- c()
     for (index in 1:length(nodes_with_edges)) {
       next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
@@ -698,7 +662,13 @@ server <- function(input, output, session) {
       HTML(paste0("<p style = 'color:green;'>", "Node with the label ", "<b>", deleted_node$label, "</b>", " was", "<b>", " removed", "</b>", " from the graph.", "</p>"))
     })
     
-    
+    # update node and edge table
+    output$feature_overview <- renderDataTable({
+      update_shown_node_table(small_nodelist_for_table)
+    })
+    output$edge_feature_overview <- renderDataTable({
+      update_shown_edge_table(small_edgelist, nodelist_table)
+    })
   })
   
   
@@ -726,31 +696,19 @@ server <- function(input, output, session) {
     
     # update global edgelist
     edgelist_table <<- edgelist_table[-c(which(edgelist_table$id == deleted_edge$id)), ]
+    small_edgelist <<- small_edgelist[-c(which(small_edgelist$id == deleted_edge$id)), ]
     
     # update tooltip information of nodes, as their degree has changed
-    update_nodes <- nodelist_table
-    update_nodes_tooltip <- update_nodes[, c(1, 3, 4)]
-    update_nodes_tooltip$degree <- c(rep(0))
-    
-    for (index in 1:nrow(edgelist_table)) {
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] + 1
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] + 1
-    }
-    
-    html_string <- ""
-    for (index in 1:ncol(update_nodes_tooltip)) {
-      html_string <- paste0(html_string, "<p><b>", colnames(update_nodes_tooltip)[index], ": ", "</b>", as.character(update_nodes_tooltip[1:nrow(update_nodes_tooltip), index]), "</p>")
-    }
-    update_nodes_tooltip$title <- html_string
-    update_nodes$title <- update_nodes_tooltip$title
-    
+    update_nodes <- small_nodelist_for_graph
+    update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
+
     # update graph
-    #visNetworkProxy("graph") %>%
-    #  visUpdateNodes(nodes = update_nodes) %>%
-    #  visRemoveEdges(id = deleted_edge$id)
+    visNetworkProxy("graph") %>%
+      visUpdateNodes(nodes = update_nodes) %>%
+      visRemoveEdges(id = deleted_edge$id)
     
     # update first input selection for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(edgelist_table$from, edgelist_table$to))
+    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
     node_labels <- c()
     for (index in 1:length(nodes_with_edges)) {
       next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
@@ -761,17 +719,17 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
     # update second input selection for edge deletion
-    edgelist <- edgelist_table
-    node_labels <- nodelist$label
+    edgelist <- small_edgelist
+    node_labels <- small_nodelist_for_table$label
     selected_node <- input$choose_first_connected_node_delete
-    selected_node <- nodelist[which(nodelist$label == selected_node), 2]
+    selected_node <- nodelist[which(node_labels == selected_node), 2]
     connected_nodes <- unique(c(
       edgelist$to[which(edgelist$from == selected_node)],
       edgelist$from[which(edgelist$to == selected_node)]
     ))
     connected_nodes_labels <- c()
     for (index in 1:length(connected_nodes)) {
-      connected_nodes_labels <- c(connected_nodes_labels, nodelist$label[nodelist$id == connected_nodes[index]])
+      connected_nodes_labels <- c(connected_nodes_labels, node_labels[nodelist$id == connected_nodes[index]])
     }
     connected_nodes_labels <- sort(connected_nodes_labels)
     
@@ -784,6 +742,14 @@ server <- function(input, output, session) {
     # inform user on the change
     output$info_change <- renderUI({
       HTML(paste0("<p style = 'color:green;'>", "Edge between ", "<b>", deleted_edge$from[1], "</b>", " and ", "<b>", deleted_edge$to[1], "</b>", " was", "<b>", " removed", "</b>", " from the graph.", "</p>"))
+    })
+    
+    # update node and edge table
+    output$feature_overview <- renderDataTable({
+      update_shown_node_table(small_nodelist_for_table)
+    })
+    output$edge_feature_overview <- renderDataTable({
+      update_shown_edge_table(small_edgelist, nodelist_table)
     })
   })
   
@@ -875,6 +841,7 @@ server <- function(input, output, session) {
         # update global edgelist
         edgelist_table <<- rbind(edgelist_table, temporary_added_edge_feature)
         edgelist_table <<- edgelist_table[order(edgelist_table$from), ]
+        small_edgelist <<- rbind(small_edgelist, temporary_added_edge_feature)
         
         # add tooltip information for the new edge (from-to, rel_pos, rel_pos_neg)
         added_edge <- temporary_added_edge_feature
@@ -894,27 +861,14 @@ server <- function(input, output, session) {
         added_edge$title <- edge_tooltip$title
         
         # update tooltip information of nodes, as their degree has changed
-        update_nodes <- nodelist_table[which(nodelist_table$id == id_first_node | nodelist_table$id == id_second_node), ]
-        update_nodes_tooltip <- update_nodes[, c(1, 3, 4)]
-        update_nodes_tooltip$degree <- c(rep(0))
-        
-        for (index in 1:nrow(edgelist_table)) {
-          update_nodes_tooltip$degree[which(update_nodes$id == edgelist_table$from[index])] <- update_nodes_tooltip$degree[which(update_nodes$id == edgelist_table$from[index])] + 1
-          update_nodes_tooltip$degree[which(update_nodes$id == edgelist_table$to[index])] <- update_nodes_tooltip$degree[which(update_nodes$id == edgelist_table$to[index])] + 1
-        }
-        
-        html_string <- ""
-        for (index in 1:ncol(update_nodes_tooltip)) {
-          html_string <- paste0(html_string, "<p><b>", colnames(update_nodes_tooltip)[index], ": ", "</b>", as.character(update_nodes_tooltip[1:nrow(update_nodes_tooltip), index]), "</p>")
-        }
-        update_nodes_tooltip$title <- html_string
-        update_nodes$title <- update_nodes_tooltip$title
-        
+        update_nodes <- small_nodelist_for_graph[which(small_nodelist_for_graph$id == id_first_node | small_nodelist_for_graph$id == id_second_node), ]
+        update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
+
         # update graph
-        #visNetworkProxy("graph") %>%
-        # visUpdateNodes(nodes = update_nodes) %>%
-        #  visUpdateEdges(edges = added_edge) %>%
-        #  visSelectEdges(id = added_edge$id[1])
+        visNetworkProxy("graph") %>%
+          visUpdateNodes(nodes = update_nodes) %>%
+          visUpdateEdges(edges = added_edge) %>%
+          visSelectEdges(id = added_edge$id[1])
         
         # clear numeric input
         updateNumericInput(session, "edgefeature_value", value = 0)
@@ -944,26 +898,28 @@ server <- function(input, output, session) {
         })
         
         # update second input selection for edge addition
-        edgelist <- edgelist_table
-        node_labels <- nodelist$label
+        #edgelist <- edgelist_table
+        edgelist <- small_edgelist
+        #node_labels <- nodelist$label
+        node_labels <- small_nodelist_for_table$label
         selected_node_for_addition <- input$choose_first_connected_node_add
-        selected_node_for_addition <- nodelist[which(nodelist$label == selected_node_for_addition), 2]
+        selected_node_for_addition <- nodelist[which(node_labels == selected_node_for_addition), 2]
         connected_nodes_add <- unique(c(
           edgelist$to[which(edgelist$from == selected_node_for_addition)],
           edgelist$from[which(edgelist$to == selected_node_for_addition)]
         ))
         connected_nodes_labels_add <- c()
         for (index in 1:length(connected_nodes_add)) {
-          connected_nodes_labels_add <- c(connected_nodes_labels_add, nodelist$label[nodelist$id == connected_nodes_add[index]])
+          connected_nodes_labels_add <- c(connected_nodes_labels_add, node_labels[nodelist$id == connected_nodes_add[index]])
         }
-        not_connected_nodes_labels <- setdiff(nodelist$label, connected_nodes_labels_add)
+        not_connected_nodes_labels <- setdiff(node_labels, connected_nodes_labels_add)
         not_connected_nodes_labels <- not_connected_nodes_labels[-c(which(not_connected_nodes_labels == input$choose_first_connected_node_add))]
         not_connected_nodes_labels <- sort(not_connected_nodes_labels)
         
         updateSelectizeInput(session, "choose_second_connected_node_add", choices = not_connected_nodes_labels, server = TRUE)
         
         # update first input selection for edge deletion - only node labels which have an edge
-        nodes_with_edges <- unique(c(edgelist_table$from, edgelist_table$to))
+        nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
         node_labels <- c()
         for (index in 1:length(nodes_with_edges)) {
           next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
@@ -986,6 +942,14 @@ server <- function(input, output, session) {
         connected_nodes_labels <- sort(connected_nodes_labels)
         
         updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
+      
+        # update node and edge table
+        output$feature_overview <- renderDataTable({
+          update_shown_node_table(small_nodelist_for_table)
+        })
+        output$edge_feature_overview <- renderDataTable({
+          update_shown_edge_table(small_edgelist, nodelist_table)
+        })
       }
     }
   })
@@ -1119,31 +1083,24 @@ server <- function(input, output, session) {
             
             # prepare node for graph update - add tooltip information: label, rel_pos, rel_pos_neg, degree
             added_node <- temporary_added_node_feature
-            added_node_tooltip <- added_node[, c(1, 3, 4)]
-            added_node_tooltip$degree <- 0
-            
-            html_string <- ""
-            for (index in 1:ncol(added_node_tooltip)) {
-              html_string <- paste0(html_string, "<p><b>", colnames(added_node_tooltip)[index], ": ", "</b>", as.character(added_node_tooltip[1:nrow(added_node_tooltip), index]), "</p>")
-            }
-            added_node_tooltip$title <- html_string
-            added_node$title <- added_node_tooltip$title
+            added_node$title <- update_node_tooltip(added_node, edgelist_table)
             
             # update graph
-            #visNetworkProxy("graph") %>%
-            #  visUpdateNodes(nodes = added_node) %>%
-            #  visSelectNodes(id = added_node$id[1])
+            visNetworkProxy("graph") %>%
+              visUpdateNodes(nodes = added_node) %>%
+              visSelectNodes(id = added_node$id[1])
             
             # update global nodeslist table
             nodelist_table <<- rbind(nodelist_table, temporary_added_node_feature)
             nodelist_table <<- nodelist_table[order(nodelist_table$label), ]
+            small_nodelist_for_table <<- rbind(small_nodelist_for_table, temporary_added_node_feature)
             
             # update amount of nodes for Sliding bar
             max_nodes = length(nodelist_table[[1]])
             updateSliderInput(session, "slider", max=max_nodes)
             
             # update input selection for node deletion
-            node_labels <- sort(nodelist_table$label)
+            node_labels <- sort(small_nodelist_for_table$label)
             updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
             
             # update first input selection for edge addition
@@ -1173,6 +1130,15 @@ server <- function(input, output, session) {
             output$info_change <- renderUI({
               HTML(paste0("<p style = 'color:green;'>", "Node with the label ", "<b>", added_node$label, "</b>", " was", "<b>", " added", "</b>", " to the graph.", "</p>"))
             })
+            
+            # update node and edge table
+            output$feature_overview <- renderDataTable({
+              update_shown_node_table(small_nodelist_for_table)
+            })
+            output$edge_feature_overview <- renderDataTable({
+              update_shown_edge_table(small_edgelist, nodelist_table)
+            })
+            
           } else {
             # error message when a feature value is entered and requires to press "enter" first
             output$error_add_node <- renderUI({
@@ -2086,41 +2052,15 @@ server <- function(input, output, session) {
   output$feature_overview <- renderDataTable({
       # update data table, every time smaller node and edge list gets updated
       calculate_smaller_node_and_edge_list()
-      
-      table <- small_nodelist_for_table
-      table <- table[, -2]
-      datatable(
-        table,
-        rownames = FALSE,
-        extensions = "FixedColumns",
-        options = list(scrollX = TRUE, fixedColumns = list(leftColumns = 2))
-      )
-    }
+      update_shown_node_table(small_nodelist_for_table)
+      }
   )
 
   # create data table with node attributes ----------------------------------
   output$edge_feature_overview <- renderDataTable({
     # update data table, every time smaller node and edge list gets updated
     calculate_smaller_node_and_edge_list()
-    
-    table <- small_edgelist
-    
-    # replace ids with labels for showing in the table
-    for(idx in 1:nrow(table)){
-      table$from[idx] <- nodelist_table$label[which(nodelist_table$id==table$from[idx])]
-      table$to[idx] <- nodelist_table$label[which(nodelist_table$id==table$to[idx])]
-    }
-    
-    # sort by from label and remove all ID columns for vis
-    table <- table[order(table$from), ]
-    table <- table[, c(1, 2, 4:ncol(table))]
-    
-    datatable(
-      table,
-      rownames = FALSE,
-      extensions = "FixedColumns",
-      options = list(scrollX = TRUE, fixedColumns = list(leftColumns = 2))
-    )
+    update_shown_edge_table(small_edgelist, nodelist_table)
   })
   
   

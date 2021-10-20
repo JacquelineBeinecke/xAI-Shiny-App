@@ -9,41 +9,6 @@ library(zip)
 library(rje)
 library(png)
 
-
-##################################
-######## disable tabs ############
-##################################
-
-# JavaScript that dis/enables the ability to click the tab
-app_jscode <-
-  "shinyjs.disableTab = function(name) {
-    var tab = $('.nav li a[data-value=' + name + ']');
-    tab.bind('click.tab', function(e) {
-      e.preventDefault();
-      return false;
-    });
-    tab.addClass('disabled');
-  }
-  shinyjs.enableTab = function(name) {
-    var tab = $('.nav li a[data-value=' + name + ']');
-    tab.unbind('click.tab');
-    tab.removeClass('disabled');
-  }"
-
-# CSS script that makes it look as if the tab cannot be clicked
-app_css <-
-  ".nav li a.disabled {
-    background-color: #f8f8f8 !important;
-    color: #777777 !important;
-    cursor: not-allowed !important;
-    border-color: #aaa !important;
-  } "
-
-
-##################################
-############# UI #################
-##################################
-
 ui <- fluidPage(
   
   # activate the function to dis/enable tabs
