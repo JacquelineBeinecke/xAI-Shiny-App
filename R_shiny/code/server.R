@@ -420,7 +420,49 @@ server <- function(input, output, session) {
     retrain_not_available()
   })
   
- 
+  # disable add/delete button, if no nodes/edges are in small_nodelist_for_table/small_edgelist
+  observeEvent(ignoreInit = T,c(input$modify_options, input$undo, input$radio, input$slider, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion),{
+    # disable delete node button
+    if(input$modify_options == "1"){
+      if(nrow(small_nodelist_for_table) == 0){
+        shinyjs::disable("confirm_node_deletion")
+      }else{
+        shinyjs::enable("confirm_node_deletion")
+      }
+    }
+    # disable delete edge button
+    if(input$modify_options == "3"){
+      if(nrow(small_edgelist) == 0){
+        shinyjs::disable("confirm_edge_deletion")
+      }else{
+        shinyjs::enable("confirm_edge_deletion")
+      }
+    }
+    # disable add edge button
+    if(input$modify_options == "4"){
+      # calculate the possible amount of edges between the nodes in small_nodelist_for_table
+      # if 5 nodes are shown in the graph 4+3+2+1 edges are possible between these nodes
+      # because there cannot be multiple edges between two nodes
+      # and if there are 3 other nodes in the graph each of the 5 nodes can connect to
+      # any of these 3 other nodes so 5*3 more edges are possible
+      
+      #amount of nodes in table
+      nodes_in_table <- nrow(small_nodelist_for_table)
+      #amount of nodes only in graph
+      nodes_only_in_graph <- (nrow(small_nodelist_for_graph) - nodes_in_table)
+      
+      possible_amount_of_edges_between_nodes_in_table <- sum(1:(nodes_in_table-1))
+      possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph <- (nodes_in_table*nodes_only_in_graph)
+      
+      total_possible_amount_of_edges <- (possible_amount_of_edges_between_nodes_in_table + possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph)
+  
+      if(nrow(small_edgelist) == total_possible_amount_of_edges){
+        shinyjs::disable("confirm_edge_addition")
+      }else{
+        shinyjs::enable("confirm_edge_addition")
+      }
+    }
+  })
   
   ##################################
   ######### Network Graph ##########
@@ -434,7 +476,6 @@ server <- function(input, output, session) {
     input$slider,
     input$radio
     ), {
-      
     # create graph element
     output$graph <- renderVisNetwork({
       # read data on nodes and edges
@@ -443,50 +484,48 @@ server <- function(input, output, session) {
       
       nodes <- small_nodelist_for_graph
       edges <- small_edgelist
-      
+    
       nodes$title <- update_node_tooltip(nodes, complete_edgelist)
       
-      # tooltip for edges: translate node ids into label names, create html String containing tooltip information: "from-to", rel_pos, rel_pos_neg, then create additional column "title" in edges
-      edges_tooltip <- edges[, c(1, 2, 4, 5)]
-      edges_tooltip$from_to <- c(rep(0))
-      
-      # replace ids with labels for showing in the table
-      for(idx in 1:nrow(edges_tooltip)){
-        edges_tooltip$from[idx] <- complete_nodelist$label[which(complete_nodelist$id==edges_tooltip$from[idx])]
-        edges_tooltip$to[idx] <- complete_nodelist$label[which(complete_nodelist$id==edges_tooltip$to[idx])]
+      # plot the graph if edges are given (or left after edge deletions)
+      if(length(rownames(edges)) != 0){
+        # update edge tooltip title (only if edges are given)
+        edges$title <- update_edge_tooltip(complete_nodelist, edges)
+        
+        set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
+        visNetwork(nodes, edges) %>%
+          visInteraction(zoomView = TRUE, navigationButtons = TRUE, multiselect = TRUE, hover = TRUE) %>%
+          # long click on nodes to select multiple nodes or by "Ctrl" + Click
+          visIgraphLayout(layout = "layout_with_fr") %>%
+          visNodes(
+            size = 45,
+            color = list(background = "#f5f6f7", border = "#0a4ea3", highlight = list(background = "#f5f6f7", border = "red"), hover = list(background = "#f5f6f7", border = "red"))
+          ) %>% 
+          visEdges(
+            width = 5, hoverWidth = 3,
+            color = list(color = "#0a4ea3", highlight = "red", hover = "red")
+          ) %>%
+          visOptions(
+            highlightNearest = list(enabled = TRUE, degree = 1), #this shows subgraph of selected and and its degree 1 neighbours
+            # drop down on top of the graph
+            nodesIdSelection = TRUE
+            #selectedBy = "rel_pos" #with this the drop down menu lets you choose nodes based on their rel_pos value
+          )
+      # if for some reason there are no edges
+      } else {
+        set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
+        visNetwork(nodes) %>%
+          visInteraction(zoomView = TRUE, navigationButtons = TRUE, multiselect = TRUE, hover = TRUE) %>%
+          visNodes(
+            size = 45,
+            color = list(background = "#f5f6f7", border = "#0a4ea3", highlight = list(background = "#f5f6f7", border = "red"), hover = list(background = "#f5f6f7", border = "red"))
+          ) %>%
+          visOptions(
+            # drop down on top of the graph
+            nodesIdSelection = TRUE
+            #selectedBy = "rel_pos" #with this the drop down menu lets you choose nodes based on their rel_pos value
+          )
       }
-      
-      edges_tooltip$from_to <- paste0(as.character(edges_tooltip[1:nrow(edges_tooltip), 1]), " - ", as.character(edges_tooltip[1:nrow(edges_tooltip), 2]))
-      edges_tooltip <- edges_tooltip[, c(5, 3, 4)]
-      
-      
-      html_string <- ""
-      for (index in 1:ncol(edges_tooltip)) {
-        html_string <- paste0(html_string, "<p><b>", colnames(edges_tooltip)[index], ": ", "</b>", as.character(edges_tooltip[1:nrow(edges_tooltip), index]), "</p>")
-      }
-      edges_tooltip$from_to <- html_string
-      edges$title <- edges_tooltip$from_to
-      
-      # plot the graph
-      set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
-      visNetwork(nodes, edges) %>%
-        visInteraction(zoomView = TRUE, navigationButtons = TRUE, multiselect = TRUE, hover = TRUE) %>%
-        # long click on nodes to select multiple nodes or by "Ctrl" + Click
-        visIgraphLayout(layout = "layout_with_fr") %>%
-        visNodes(
-          size = 45,
-          color = list(background = "#f5f6f7", border = "#0a4ea3", highlight = list(background = "#f5f6f7", border = "red"), hover = list(background = "#f5f6f7", border = "red"))
-        ) %>%
-        visEdges(
-          width = 5, hoverWidth = 3,
-          color = list(color = "#0a4ea3", highlight = "red", hover = "red")
-        ) %>%
-        visOptions(
-          highlightNearest = list(enabled = TRUE, degree = 1), #this shows subgraph of selected and and its degree 1 neighbours
-          # drop down on top of the graph
-          nodesIdSelection = TRUE
-          #selectedBy = "rel_pos" #with this the drop down menu lets you choose nodes based on their rel_pos value
-        )
     })
   })
   
@@ -501,19 +540,30 @@ server <- function(input, output, session) {
     input$radio
     input$slider
     }, {
-    list <- calculate_smaller_node_and_edge_list()
+    #this makes sure that the smaller dataset gets calculated before the initialization of dropdowns
+    calculate_smaller_node_and_edge_list()
+      
+    # get labels and lists
     node_labels <- small_nodelist_for_table$label
     edge_list <- small_edgelist
     node_list <- small_nodelist_for_graph
     
     # input for node deletion
     updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
-    #calculate_smaller_node_and_edge_list()
     
     # first input for edge addition
-    updateSelectizeInput(session, "choose_first_connected_node_add", choices = node_labels, server = TRUE)
-    #calculate_smaller_node_and_edge_list()
+    nodes_that_can_be_connected <- c()
+    for(id in small_nodelist_for_table$id){
+      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
+      
+      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
+        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
+      }
+    }
     
+    updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
+
     # first input for edge deletion - only include node labels which have an edge
     nodes_with_edges <- unique(c(edge_list$from, edge_list$to))
     node_labels2 <- c()
@@ -534,8 +584,7 @@ server <- function(input, output, session) {
     input$choose_first_connected_node_delete 
     input$choose_first_connected_node_add
     }, {
-      
-    list <- calculate_smaller_node_and_edge_list()  
+    # get labels and lists
     edgelist <- small_edgelist
     nodelist <- small_nodelist_for_graph
     node_labels <- nodelist$label
@@ -571,6 +620,13 @@ server <- function(input, output, session) {
     not_connected_nodes_labels <- sort(not_connected_nodes_labels)
     
     updateSelectizeInput(session, "choose_second_connected_node_add", choices = not_connected_nodes_labels, server = TRUE)
+    
+    #disable button if there is no possible node to connect to
+    if(length(not_connected_nodes_labels) == 0){
+      shinyjs::disable("confirm_edge_addition")
+    }else{
+      shinyjs::enable("confirm_edge_addition")
+    }
   })
   
   
@@ -627,12 +683,12 @@ server <- function(input, output, session) {
     updateSliderInput(session, "slider", max=max_nodes)
     
     # update tooltip information of nodes, as their degree has changed
-    update_nodes <- small_nodelist_for_graph
-    update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
+    update_nodes_graph <- small_nodelist_for_graph
+    update_nodes_graph$title <- update_node_tooltip(update_nodes_graph, edgelist_table)
     
     # update graph
     visNetworkProxy("graph") %>%
-      visUpdateNodes(nodes = update_nodes) %>%
+      visUpdateNodes(nodes = update_nodes_graph) %>%
       visRemoveNodes(id = deleted_node$id)
     
     # update global variables for modification history
@@ -641,17 +697,25 @@ server <- function(input, output, session) {
     all_deleted_nodes_edges[[length(all_deleted_nodes_edges) + 1]] <<- deleted_nodes_edges
     
     # update list of nodes for node deletion
-    node_labels <- update_nodes$label
-    updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
+    updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
     
-    # update list of nodes for edge addition
-    updateSelectizeInput(session, "choose_first_connected_node_add", choices = node_labels, server = TRUE)
+    # update first input selection for edge addition
+    nodes_that_can_be_connected <- c()
+    for(id in small_nodelist_for_table$id){
+      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
+      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
+        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
+      }
+    }
+    
+    updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     # update list of nodes for edge deletion - only node labels which have an edge
     nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
     node_labels <- c()
     for (index in 1:length(nodes_with_edges)) {
-      next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
+      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
       node_labels <- c(node_labels, next_node)
     }
     node_labels <- sort(node_labels)
@@ -711,7 +775,7 @@ server <- function(input, output, session) {
     nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
     node_labels <- c()
     for (index in 1:length(nodes_with_edges)) {
-      next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
+      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
       node_labels <- c(node_labels, next_node)
     }
     node_labels <- sort(node_labels)
@@ -734,6 +798,19 @@ server <- function(input, output, session) {
     connected_nodes_labels <- sort(connected_nodes_labels)
     
     updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
+    
+    # update first input selection for edge addition
+    nodes_that_can_be_connected <- c()
+    for(id in small_nodelist_for_table$id){
+      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
+      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
+        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
+      }
+    }
+    
+    updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
+    
     
     # translate node ids into label names for the success message
     deleted_edge$from[1] <- nodelist_table[which(nodelist_table$id == deleted_edge[1, 1]), 1]
@@ -845,20 +922,7 @@ server <- function(input, output, session) {
         
         # add tooltip information for the new edge (from-to, rel_pos, rel_pos_neg)
         added_edge <- temporary_added_edge_feature
-        edge_tooltip <- added_edge[, c(1, 2, 4, 5)]
-        for (index in 1:nrow(edge_tooltip)) {
-          edge_tooltip$from[index] <- nodelist_table[which(nodelist_table$id == edge_tooltip[index, 1]), 1]
-          edge_tooltip$to[index] <- nodelist_table[which(nodelist_table$id == edge_tooltip[index, 2]), 1]
-        }
-        edge_tooltip$from_to <- paste0(as.character(edge_tooltip[1, 1]), " - ", as.character(edge_tooltip[1, 2]))
-        
-        edge_tooltip <- edge_tooltip[, c(5, 3, 4)]
-        html_string <- ""
-        for (index in 1:ncol(edge_tooltip)) {
-          html_string <- paste0(html_string, "<p><b>", colnames(edge_tooltip)[index], ": ", "</b>", as.character(edge_tooltip[1:nrow(edge_tooltip), index]), "</p>")
-        }
-        edge_tooltip$title <- html_string
-        added_edge$title <- edge_tooltip$title
+        added_edge$title <- update_edge_tooltip(nodelist_table, added_edge)
         
         # update tooltip information of nodes, as their degree has changed
         update_nodes <- small_nodelist_for_graph[which(small_nodelist_for_graph$id == id_first_node | small_nodelist_for_graph$id == id_second_node), ]
@@ -897,13 +961,24 @@ server <- function(input, output, session) {
           HTML(paste0("<p style = 'color:green;'>", "Edge between ", "<b>", added_edge$from[1], "</b>", " and ", "<b>", added_edge$to[1], "</b>", " was", "<b>", " added", "</b>", " to the graph.", "</p>"))
         })
         
+        # update first input selection for edge addition
+        nodes_that_can_be_connected <- c()
+        for(id in small_nodelist_for_table$id){
+          amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
+          # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+          if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
+            nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
+          }
+        }
+        
+        updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
+        
         # update second input selection for edge addition
-        #edgelist <- edgelist_table
         edgelist <- small_edgelist
-        #node_labels <- nodelist$label
         node_labels <- small_nodelist_for_table$label
         selected_node_for_addition <- input$choose_first_connected_node_add
         selected_node_for_addition <- nodelist[which(node_labels == selected_node_for_addition), 2]
+        
         connected_nodes_add <- unique(c(
           edgelist$to[which(edgelist$from == selected_node_for_addition)],
           edgelist$from[which(edgelist$to == selected_node_for_addition)]
@@ -918,11 +993,12 @@ server <- function(input, output, session) {
         
         updateSelectizeInput(session, "choose_second_connected_node_add", choices = not_connected_nodes_labels, server = TRUE)
         
+        
         # update first input selection for edge deletion - only node labels which have an edge
         nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
         node_labels <- c()
         for (index in 1:length(nodes_with_edges)) {
-          next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
+          next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
           node_labels <- c(node_labels, next_node)
         }
         node_labels <- sort(node_labels)
@@ -943,6 +1019,7 @@ server <- function(input, output, session) {
         
         updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
       
+        
         # update node and edge table
         output$feature_overview <- renderDataTable({
           update_shown_node_table(small_nodelist_for_table)
@@ -1094,6 +1171,7 @@ server <- function(input, output, session) {
             nodelist_table <<- rbind(nodelist_table, temporary_added_node_feature)
             nodelist_table <<- nodelist_table[order(nodelist_table$label), ]
             small_nodelist_for_table <<- rbind(small_nodelist_for_table, temporary_added_node_feature)
+            small_nodelist_for_graph <<- rbind(small_nodelist_for_graph, temporary_added_node_feature)
             
             # update amount of nodes for Sliding bar
             max_nodes = length(nodelist_table[[1]])
@@ -1104,7 +1182,28 @@ server <- function(input, output, session) {
             updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
             
             # update first input selection for edge addition
-            updateSelectizeInput(session, "choose_first_connected_node_add", choices = node_labels, server = TRUE)
+            nodes_that_can_be_connected <- c()
+            for(id in small_nodelist_for_table$id){
+              amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
+              # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+              if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
+                nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
+              }
+            }
+            
+            updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
+            
+            
+            # update first input selection for edge deletion
+            # update list of nodes for edge deletion - only node labels which have an edge
+            nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
+            node_labels <- c()
+            for (index in 1:length(nodes_with_edges)) {
+              next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
+              node_labels <- c(node_labels, next_node)
+            }
+            node_labels <- sort(node_labels)
+            updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
             
             # clear text input, after a new node was created
             updateTextInput(session, "new_node_label", value = "", placeholder = "e.g. ABCC2")
@@ -1189,15 +1288,7 @@ server <- function(input, output, session) {
   ##################################
   
   # disable undo-button when modification_history is empty, enable undo-button when there are actions to reverse ----------------------------------
-  observeEvent({ # the events that trigger this
-    input$undo
-    input$upload_edges
-    input$confirm_edge_deletion
-    input$confirm_edge_addition
-    input$confirm_node_addition
-    input$confirm_node_deletion
-    }, {
-      
+  observeEvent(c(input$undo, input$upload_edges, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion), {
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
     } else {
@@ -1235,51 +1326,26 @@ server <- function(input, output, session) {
     # update global nodelist
     nodelist_table <<- rbind(nodelist_table, add_node)
     nodelist_table <<- nodelist_table[order(nodelist_table$label), ]
+    small_nodelist_for_graph <<- rbind(small_nodelist_for_graph, add_node)
+    small_nodelist_for_table <<- rbind(small_nodelist_for_table, add_node)
     
     # update global edgelist
     edgelist_table <<- rbind(edgelist_table, add_edges)
     edgelist_table <<- edgelist_table[order(edgelist_table$from), ]
+    small_edgelist <<- rbind(small_edgelist, add_edges)
     
     # update tooltip information of nodes, as their degree has changed
-    update_nodes <- nodelist_table
-    update_nodes_tooltip <- update_nodes[, c(1, 3, 4)]
-    update_nodes_tooltip$degree <- c(rep(0))
-    
-    for (index in 1:nrow(edgelist_table)) {
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] + 1
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] + 1
-    }
-    
-    html_string <- ""
-    for (index in 1:ncol(update_nodes_tooltip)) {
-      html_string <- paste0(html_string, "<p><b>", colnames(update_nodes_tooltip)[index], ": ", "</b>", as.character(update_nodes_tooltip[1:nrow(update_nodes_tooltip), index]), "</p>")
-    }
-    update_nodes_tooltip$title <- html_string
-    update_nodes$title <- update_nodes_tooltip$title
+    update_nodes <- small_nodelist_for_graph
+    update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
     
     # create tooltip information for edges
-    edges_tooltip <- add_edges[, c(1, 2, 4, 5)]
-    edges_tooltip$from_to <- c(rep(0))
-    
-    for (index in 1:nrow(edges_tooltip)) {
-      edges_tooltip$from[index] <- nodelist_table[which(nodelist_table$id == edges_tooltip[index, 1]), 1]
-      edges_tooltip$to[index] <- nodelist_table[which(nodelist_table$id == edges_tooltip[index, 2]), 1]
-    }
-    edges_tooltip$from_to <- paste0(as.character(edges_tooltip[1:nrow(edges_tooltip), 1]), " - ", as.character(edges_tooltip[1:nrow(edges_tooltip), 2]))
-    edges_tooltip <- edges_tooltip[, c(5, 3, 4)]
-    
-    html_string <- ""
-    for (index in 1:ncol(edges_tooltip)) {
-      html_string <- paste0(html_string, "<p><b>", colnames(edges_tooltip)[index], ": ", "</b>", as.character(edges_tooltip[1:nrow(edges_tooltip), index]), "</p>")
-    }
-    edges_tooltip$title <- html_string
-    add_edges$title <- edges_tooltip$title
+    add_edges$title <- update_edge_tooltip(nodelist_table, add_edges)
     
     # update graph
-    #visNetworkProxy("graph") %>%
-    #  visUpdateNodes(nodes = update_nodes) %>%
-    #  visUpdateEdges(edges = add_edges) %>%
-    #  visSelectNodes(id = add_node$id[1])
+    visNetworkProxy("graph") %>%
+      visUpdateNodes(nodes = update_nodes) %>%
+      visUpdateEdges(edges = add_edges) %>%
+      visSelectNodes(id = add_node$id[1])
     
     # remove node from global variables of modification history
     modification_history <<- modification_history[-c(nrow(modification_history)), ]
@@ -1287,17 +1353,26 @@ server <- function(input, output, session) {
     all_deleted_nodes_edges <<- all_deleted_nodes_edges[-length(all_deleted_nodes_edges)]
     
     # update list of nodes for node deletion
-    node_labels <- nodelist_table$label
-    updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
+    updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
     
     # update list of nodes for edge addition
-    updateSelectizeInput(session, "choose_first_connected_node_add", choices = node_labels, server = TRUE)
+    # update first input selection for edge addition
+    nodes_that_can_be_connected <- c()
+    for(id in small_nodelist_for_table$id){
+      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
+      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
+        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
+      }
+    }
+    
+    updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     # update list of nodes for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(edgelist_table$from, edgelist_table$to))
+    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
     node_labels <- c()
     for (index in 1:length(nodes_with_edges)) {
-      next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
+      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
       node_labels <- c(node_labels, next_node)
     }
     node_labels <- sort(node_labels)
@@ -1312,6 +1387,14 @@ server <- function(input, output, session) {
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
     }
+    
+    # update node and edge table
+    output$feature_overview <- renderDataTable({
+      update_shown_node_table(small_nodelist_for_table)
+    })
+    output$edge_feature_overview <- renderDataTable({
+      update_shown_edge_table(small_edgelist, nodelist_table)
+    })
   }
   
   
@@ -1323,57 +1406,31 @@ server <- function(input, output, session) {
     
     # update global edgelist
     edgelist_table <<- rbind(edgelist_table, add_edge)
-    edgelist_table <- edgelist_table[order(edgelist_table$from), ]
+    edgelist_table <<- edgelist_table[order(edgelist_table$from), ]
+    small_edgelist <<- rbind(small_edgelist, add_edge)
     
     # add tooltip information for the edge (from-to, rel_pos, rel_pos_neg)
-    edge_tooltip <- add_edge[, c(1, 2, 4, 5)]
-    for (index in 1:nrow(edge_tooltip)) {
-      edge_tooltip$from[index] <- nodelist_table[which(nodelist_table$id == edge_tooltip[index, 1]), 1]
-      edge_tooltip$to[index] <- nodelist_table[which(nodelist_table$id == edge_tooltip[index, 2]), 1]
-    }
-    edge_tooltip$from_to <- paste0(as.character(edge_tooltip[1, 1]), " - ", as.character(edge_tooltip[1, 2]))
-    
-    edge_tooltip <- edge_tooltip[, c(5, 3, 4)]
-    html_string <- ""
-    for (index in 1:ncol(edge_tooltip)) {
-      html_string <- paste0(html_string, "<p><b>", colnames(edge_tooltip)[index], ": ", "</b>", as.character(edge_tooltip[1:nrow(edge_tooltip), index]), "</p>")
-    }
-    edge_tooltip$title <- html_string
-    add_edge$title <- edge_tooltip$title
-    
+    add_edge$title <- update_edge_tooltip(nodelist_table, add_edge)
     
     # update tooltip information of nodes, as their degree has changed
-    update_nodes <- nodelist_table
-    update_nodes_tooltip <- update_nodes[, c(1, 3, 4)]
-    update_nodes_tooltip$degree <- c(rep(0))
-    
-    for (index in 1:nrow(edgelist_table)) {
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] + 1
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] + 1
-    }
-    
-    html_string <- ""
-    for (index in 1:ncol(update_nodes_tooltip)) {
-      html_string <- paste0(html_string, "<p><b>", colnames(update_nodes_tooltip)[index], ": ", "</b>", as.character(update_nodes_tooltip[1:nrow(update_nodes_tooltip), index]), "</p>")
-    }
-    update_nodes_tooltip$title <- html_string
-    update_nodes$title <- update_nodes_tooltip$title
+    update_nodes <- small_nodelist_for_graph
+    update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
     
     # update graph
-    #visNetworkProxy("graph") %>%
-    #  visUpdateNodes(nodes = update_nodes) %>%
-    #  visUpdateEdges(edges = add_edge) %>%
-    #  visSelectEdges(id = add_edge$id[1])
+    visNetworkProxy("graph") %>%
+      visUpdateNodes(nodes = update_nodes) %>%
+      visUpdateEdges(edges = add_edge) %>%
+      visSelectEdges(id = add_edge$id[1])
     
     # remove edge from global variables of modification history
     modification_history <<- modification_history[-c(nrow(modification_history)), ]
     all_deleted_edges <<- all_deleted_edges[-c(nrow(all_deleted_edges)), ]
     
     # update first input selection for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(edgelist_table$from, edgelist_table$to))
+    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
     node_labels <- c()
     for (index in 1:length(nodes_with_edges)) {
-      next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
+      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
       node_labels <- c(node_labels, next_node)
     }
     node_labels <- sort(node_labels)
@@ -1395,6 +1452,18 @@ server <- function(input, output, session) {
     
     updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
     
+    # update first input selection for edge addition
+    nodes_that_can_be_connected <- c()
+    for(id in small_nodelist_for_table$id){
+      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
+      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
+        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
+      }
+    }
+    
+    updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
+    
     # inform user on the change
     add_edge$from[1] <- nodelist_table[which(nodelist_table$id == add_edge[1, 1]), 1]
     add_edge$to[1] <- nodelist_table[which(nodelist_table$id == add_edge[1, 2]), 1]
@@ -1407,6 +1476,14 @@ server <- function(input, output, session) {
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
     }
+    
+    # update node and edge table
+    output$feature_overview <- renderDataTable({
+      update_shown_node_table(small_nodelist_for_table)
+    })
+    output$edge_feature_overview <- renderDataTable({
+      update_shown_edge_table(small_edgelist, nodelist_table)
+    })
   }
   
   # function to reverse the last edge addition ----------------------------------
@@ -1418,31 +1495,41 @@ server <- function(input, output, session) {
     # update global edgelist
     edgelist_table <<- edgelist_table[-c(which(edgelist_table$id == delete_edge$id)), ]
     
-    # update tooltip information of nodes, as their degree has changed
-    update_nodes <- nodelist_table
-    update_nodes_tooltip <- update_nodes[, c(1, 3, 4)]
-    update_nodes_tooltip$degree <- c(rep(0))
-    
-    for (index in 1:nrow(edgelist_table)) {
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$from[index])] + 1
-      update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] <- update_nodes_tooltip$degree[which(nodelist_table$id == edgelist_table$to[index])] + 1
+    # check if the edge we want to now remove is in the small_edgelist
+    # don't update anything if the edge is not in small_edgelist
+    if(length(which(small_edgelist$id == delete_edge$id)) !=0 ){
+      small_edgelist <<- small_edgelist[-c(which(small_edgelist$id == delete_edge$id)), ]
+      
+      # update tooltip information of nodes, as their degree has changed
+      update_nodes <- small_nodelist_for_graph
+      update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
+      
+      # update graph
+      visNetworkProxy("graph") %>%
+        visUpdateNodes(nodes = update_nodes) %>%
+        visRemoveEdges(id = delete_edge$id)
+      
+      # update edge table
+      output$edge_feature_overview <- renderDataTable({
+        update_shown_edge_table(small_edgelist, nodelist_table)
+      })
     }
-    
-    html_string <- ""
-    for (index in 1:ncol(update_nodes_tooltip)) {
-      html_string <- paste0(html_string, "<p><b>", colnames(update_nodes_tooltip)[index], ": ", "</b>", as.character(update_nodes_tooltip[1:nrow(update_nodes_tooltip), index]), "</p>")
-    }
-    update_nodes_tooltip$title <- html_string
-    update_nodes$title <- update_nodes_tooltip$title
-    
-    # update graph
-    #visNetworkProxy("graph") %>%
-    #  visUpdateNodes(nodes = update_nodes) %>%
-    #  visRemoveEdges(id = delete_edge$id)
     
     # remove edge from global variables of modification history
     modification_history <<- modification_history[-c(nrow(modification_history)), ]
     all_added_edges <<- all_added_edges[-c(nrow(all_added_edges)), ]
+    
+    # update first input selection for edge addition
+    nodes_that_can_be_connected <- c()
+    for(id in small_nodelist_for_table$id){
+      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
+      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
+        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
+      }
+    }
+    
+    updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     # update second input selection for edge addition
     selected_node_for_addition <- input$choose_first_connected_node_add
@@ -1461,11 +1548,18 @@ server <- function(input, output, session) {
     
     updateSelectizeInput(session, "choose_second_connected_node_add", choices = not_connected_nodes_labels, server = TRUE)
     
+    #disable button if there is no possible node to connect to
+    if(length(not_connected_nodes_labels) == 0){
+      shinyjs::disable("confirm_edge_addition")
+    }else{
+      shinyjs::enable("confirm_edge_addition")
+    }
+    
     # update first input selection for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(edgelist_table$from, edgelist_table$to))
+    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
     node_labels <- c()
     for (index in 1:length(nodes_with_edges)) {
-      next_node <- nodelist_table$label[which(nodelist_table$id == nodes_with_edges[index])]
+      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
       node_labels <- c(node_labels, next_node)
     }
     node_labels <- sort(node_labels)
@@ -1510,20 +1604,45 @@ server <- function(input, output, session) {
     # update global nodelist
     nodelist_table <<- nodelist_table[-c(which(nodelist_table$label == delete_node$label)), ]
     
-    # update graph
-    #visNetworkProxy("graph") %>%
-    #  visRemoveNodes(id = delete_node$id)
-    
+    # check if the node we want to now remove is in the small_nodelist_for_table or small_nodelist_for_graph
+    # don't update anything if the node is not in one of them
+    if(length(which(small_nodelist_for_graph$id == delete_node$id)) !=0){
+      # update smaller table
+      small_nodelist_for_graph <<- small_nodelist_for_graph[-c(which(small_nodelist_for_graph$label == delete_node$label)), ]
+      
+      # update graph
+      visNetworkProxy("graph") %>%
+        visRemoveNodes(id = delete_node$id)
+      # if the node was shown in table remove it
+      if(length(which(small_nodelist_for_table$id == delete_node$id)) !=0){
+        # update smaller table
+        small_nodelist_for_table <<- small_nodelist_for_table[-c(which(small_nodelist_for_table$label == delete_node$label)), ]
+        
+        # update node and edge table
+        output$feature_overview <- renderDataTable({
+          update_shown_node_table(small_nodelist_for_table)
+        })
+      }
+    }
+
     # remove node from global variables of modification history
     modification_history <<- modification_history[-c(nrow(modification_history)), ]
     all_added_nodes <<- all_added_nodes[-c(nrow(all_added_nodes)), ]
     
     # update input selection for node deletion
-    node_labels <- sort(nodelist_table$label)
-    updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
+    updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
     
     # update first input selection for edge addition
-    updateSelectizeInput(session, "choose_first_connected_node_add", choices = node_labels, server = TRUE)
+    nodes_that_can_be_connected <- c()
+    for(id in small_nodelist_for_table$id){
+      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
+      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
+        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
+      }
+    }
+    
+    updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     # inform user on the change
     output$info_change <- renderUI({
@@ -1977,12 +2096,7 @@ server <- function(input, output, session) {
   # reactive expression that extracts and prepares the current data on nodes and edges ----------------------------------
   # @return list with data.frame of nodes for presenting in a table, 
   #         data.frame of nodes for graph vis, and data.frame of edges for table and graph vis
-  calculate_smaller_node_and_edge_list <- eventReactive(c(
-    # the events that trigger this 
-    input$slider,
-    input$radio
-    )
-    ,{ 
+  calculate_smaller_node_and_edge_list <- eventReactive(c(input$upload_edges, input$slider, input$radio),{ 
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     
@@ -2045,23 +2159,19 @@ server <- function(input, output, session) {
   
     # save in global variable
     small_edgelist <<- edgelist
+    
+    # update node and edge table
+    output$feature_overview <- renderDataTable({
+      update_shown_node_table(small_nodelist_for_table)
+    })
+    output$edge_feature_overview <- renderDataTable({
+      update_shown_edge_table(small_edgelist, nodelist_table)
+    })
+    
     }
   )
   
-  # create data table with node features ----------------------------------
-  output$feature_overview <- renderDataTable({
-      # update data table, every time smaller node and edge list gets updated
-      calculate_smaller_node_and_edge_list()
-      update_shown_node_table(small_nodelist_for_table)
-      }
-  )
-
-  # create data table with node attributes ----------------------------------
-  output$edge_feature_overview <- renderDataTable({
-    # update data table, every time smaller node and edge list gets updated
-    calculate_smaller_node_and_edge_list()
-    update_shown_edge_table(small_edgelist, nodelist_table)
-  })
+  
   
   
   ##################################

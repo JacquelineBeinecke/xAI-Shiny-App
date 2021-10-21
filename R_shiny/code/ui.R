@@ -180,7 +180,7 @@ ui <- fluidPage(
                                #default nodes to display is 3 (value = 3)
                                #default max is 100 but this gets updated as soon as node and edge data are uploaded
                                #then the max value will always be the amount of nodes in the data
-                               sliderInput("slider", label = h3("Select how many nodes to display"), 
+                               sliderInput("slider", label = h3("Select how many nodes to display (their next neighbours will also be displayed in the graph)"), 
                                            min = 1, max = 100, value = 3) 
                         )
                       ),

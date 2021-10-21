@@ -1,4 +1,4 @@
-## this file gets loaded befor the ui and server and contains helpful functions
+## this file gets loaded before the ui and server and contains helpful functions
 ## that make the server and ui code a bit shorter and more understandable
 
 ##################################
@@ -29,6 +29,8 @@ app_css <-
     cursor: not-allowed !important;
     border-color: #aaa !important;
   } "
+
+
 
 
 #############################################
@@ -73,8 +75,14 @@ update_shown_edge_table <- function(new_edge_table, nodelist_table){
 }
 
 
+
+
+
+#############################################
+######## functions for tooltips  ############
+#############################################
+
 ## function to calculate node_tooltip
-# calculate node degree (amount of edges connected to it)
 update_node_tooltip <- function(nodelist, edgelist){
   degree <- c() # initialze "degree" vector
   for(i in 1:length(nodelist$id)){
@@ -94,3 +102,25 @@ update_node_tooltip <- function(nodelist, edgelist){
   return(nodes_tooltip$title)
 }
 
+## function to calculate edge_tooltip
+update_edge_tooltip <- function(nodelist, edgelist){
+  # tooltip for edges: translate node ids into label names, create html String containing tooltip information: "from-to", rel_pos, rel_pos_neg, then create additional column "title" in edges
+  edges_tooltip <- edgelist[, c(1, 2, 4, 5)]
+  string <- c()
+  
+  # replace ids with labels for showing in the table
+  for(idx in 1:nrow(edges_tooltip)){
+    edges_tooltip$from[idx] <- nodelist$label[which(nodelist$id==edges_tooltip$from[idx])]
+    edges_tooltip$to[idx] <- nodelist$label[which(nodelist$id==edges_tooltip$to[idx])]
+  }
+  
+  edges_tooltip$from_to <- paste0(as.character(edges_tooltip[1:nrow(edges_tooltip), 1]), " - ", as.character(edges_tooltip[1:nrow(edges_tooltip), 2]))
+  edges_tooltip <- edges_tooltip[, c(5, 3, 4)]
+  
+  
+  for (index in 1:ncol(edges_tooltip)) {
+    string <- paste0(string, "<p><b>", colnames(edges_tooltip)[index], ": ", "</b>", as.character(edges_tooltip[1:nrow(edges_tooltip), index]), "</p>")
+  }
+  
+  return(string)
+}
