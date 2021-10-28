@@ -652,7 +652,6 @@ server <- function(input, output, session) {
   
   # on button click "Delete Node" ----------------------------------
   observeEvent(input$confirm_node_deletion, {
-    
     # read the node that has been selected by the user for deletion
     nodelist <- nodelist_table
     id <- nodelist$id[which(nodelist$label == input$choose_node_to_delete)]
@@ -664,7 +663,7 @@ server <- function(input, output, session) {
     nodelist_table <<- nodelist_table[-c(which(nodelist_table$label == deleted_node$label)), ]
     small_nodelist_for_graph <<- small_nodelist_for_graph[-c(which(small_nodelist_for_graph$label == deleted_node$label)), ]
     small_nodelist_for_table <<- small_nodelist_for_table[-c(which(small_nodelist_for_table$label == deleted_node$label)), ]
-    
+
     # update global edgelist and save deleted edges from node in a data frame
     deleted_nodes_edges <- data.frame()
     if (deleted_node$id %in% edgelist_table$from) {
@@ -677,7 +676,7 @@ server <- function(input, output, session) {
       edgelist_table <<- edgelist_table[-c(which(edgelist_table$to == deleted_node$id)), ]
       small_edgelist <<- small_edgelist[-c(which(small_edgelist$to == deleted_node$id)), ]
     }
-    
+
     # update amount of nodes for Sliding bar
     max_nodes = length(nodelist_table[[1]])
     updateSliderInput(session, "slider", max=max_nodes)
@@ -694,7 +693,14 @@ server <- function(input, output, session) {
     # update global variables for modification history
     modification_history[nrow(modification_history) + 1, ] <<- c("deleted", "node")
     all_deleted_nodes <<- rbind(all_deleted_nodes, deleted_node)
-    all_deleted_nodes_edges[[length(all_deleted_nodes_edges) + 1]] <<- deleted_nodes_edges
+    if(nrow(deleted_nodes_edges) != 0){
+      all_deleted_nodes_edges[[length(all_deleted_nodes_edges) + 1]] <<- deleted_nodes_edges
+    }else{ #if the node didn't have any edges, we need to save a dataframe with the same columns as edgetable but with zero rows
+      cols <- c("from", "to", "id", "rel_pos", "rel_pos_neg", "confidence")
+      df <- data.frame(matrix(nrow = 0, ncol = length(cols)))
+      colnames(df) <- cols
+      all_deleted_nodes_edges[[length(all_deleted_nodes_edges) + 1]] <<- df
+    }
     
     # update list of nodes for node deletion
     updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
@@ -1329,24 +1335,32 @@ server <- function(input, output, session) {
     small_nodelist_for_graph <<- rbind(small_nodelist_for_graph, add_node)
     small_nodelist_for_table <<- rbind(small_nodelist_for_table, add_node)
     
-    # update global edgelist
-    edgelist_table <<- rbind(edgelist_table, add_edges)
-    edgelist_table <<- edgelist_table[order(edgelist_table$from), ]
-    small_edgelist <<- rbind(small_edgelist, add_edges)
+    # update global edgelist (ONLY IF THERE IS AN EDGE)
+    if(nrow(add_edges) != 0){
+      edgelist_table <<- rbind(edgelist_table, add_edges)
+      edgelist_table <<- edgelist_table[order(edgelist_table$from), ]
+      small_edgelist <<- rbind(small_edgelist, add_edges)
+      
+      # create tooltip information for edges
+      add_edges$title <- update_edge_tooltip(nodelist_table, add_edges)
+    }
     
     # update tooltip information of nodes, as their degree has changed
     update_nodes <- small_nodelist_for_graph
     update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
     
-    # create tooltip information for edges
-    add_edges$title <- update_edge_tooltip(nodelist_table, add_edges)
     
     # update graph
-    visNetworkProxy("graph") %>%
-      visUpdateNodes(nodes = update_nodes) %>%
-      visUpdateEdges(edges = add_edges) %>%
-      visSelectNodes(id = add_node$id[1])
-    
+    if(nrow(add_edges) != 0){
+      visNetworkProxy("graph") %>%
+        visUpdateNodes(nodes = update_nodes) %>%
+        visUpdateEdges(edges = add_edges) %>%
+        visSelectNodes(id = add_node$id[1])
+    }else{
+      visNetworkProxy("graph") %>%
+        visUpdateNodes(nodes = update_nodes) %>%
+        visSelectNodes(id = add_node$id[1])
+    }
     # remove node from global variables of modification history
     modification_history <<- modification_history[-c(nrow(modification_history)), ]
     all_deleted_nodes <<- all_deleted_nodes[-c(nrow(all_deleted_nodes)), ]
@@ -1660,7 +1674,8 @@ server <- function(input, output, session) {
   ######### Color nodes ############
   ##################################
   
-  # The following code has to be placed after the modification options to ensure that when e.g. an edge is added, the edgelist_table is updated before the degree is calculated to color the nodes
+  # The following code has to be placed after the modification options to ensure that when e.g. an edge is added, 
+  # the edgelist_table is updated before the degree is calculated to color the nodes
   
   # system reaction depending on the selected attribute to color the nodes by ---------------------------------- 
   observeEvent({ # the events that trigger this
@@ -1697,8 +1712,8 @@ server <- function(input, output, session) {
         nodes$color.hover.border <- c(rep("red", nrow(nodes)))
         
         # update graph
-        #visNetworkProxy("graph") %>%
-        #  visUpdateNodes(nodes = nodes)
+        visNetworkProxy("graph") %>%
+          visUpdateNodes(nodes = nodes)
         
         # empty legend content for the case that another data set was uploaded before and this function was used during that time
         output$lowest_rel_pos <- renderUI({
@@ -1776,8 +1791,8 @@ server <- function(input, output, session) {
         })
         
         # update graph
-        #visNetworkProxy("graph") %>%
-        #  visUpdateNodes(nodes = nodes)
+        visNetworkProxy("graph") %>%
+          visUpdateNodes(nodes = nodes)
       }
       
       ##########
