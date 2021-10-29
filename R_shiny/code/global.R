@@ -124,3 +124,66 @@ update_edge_tooltip <- function(nodelist, edgelist){
   
   return(string)
 }
+
+
+#############################################
+########  functions for colors   ############
+#############################################
+
+get_rel_pos_colors_and_border <- function(nodelist){
+  nodes <- nodelist
+  # define amount of different groups to differentiate by color and set the same amount of colors
+  amount <- 5
+  pos_colors <- c("#FAFAFA", "#E0E0E0", "#9E9E9E", "#616161", "#212121") #light to dark (left to right)
+  
+  # calculate intervals
+  intervals <- cut(nodes$rel_pos, breaks = 5)
+  # map a color to each group
+  names(pos_colors) <- levels(intervals)
+  
+  # classify all nodes into groups with different colors
+  nodes$group <- intervals
+  nodes$color.background <- pos_colors[nodes$group]
+  nodes$color.highlight.background <- pos_colors[nodes$group]
+  nodes$color.hover.background <- pos_colors[nodes$group]
+  
+  all_rel_pos <- list("Nodes" = nodes, "Colors" = pos_colors, "Borders" = levels(intervals))
+  return(all_rel_pos)
+}
+
+
+get_rel_pos_neg_colors_and_border <- function(nodelist){
+  nodes <- nodelist
+  # define amount of different groups to differentiate by color
+  amount <- 5
+  neg_colors <- c("#0D47A1", "#1976D2", "#2196F3", "#90CAF9", "#E3F2FD")
+  pos_colors <- c("#FFEBEE", "#FFCDD2", "#E57373", "#D32F2F", "#B71C1C")
+  
+  # calculate intervals
+  nodes_positive <- nodes[which(nodes$rel_pos_neg > 0), ]
+  nodes_negative <- nodes[which(nodes$rel_pos_neg <= 0), ]
+  
+  # calculate intervals
+  intervals_pos <- cut(nodes_positive$rel_pos_neg, breaks = 5)
+  intervals_neg <- cut(nodes_negative$rel_pos_neg, breaks = 5)
+
+  # map a color to each group
+  names(pos_colors) <- levels(intervals_pos)
+  names(neg_colors) <- levels(intervals_neg)
+
+  # classify all nodes into groups with different colors
+  nodes_negative$group <- intervals_neg
+  nodes_negative$color.background <- neg_colors[nodes_negative$group]
+  nodes_negative$color.highlight.background <- neg_colors[nodes_negative$group]
+  nodes_negative$color.hover.background <- neg_colors[nodes_negative$group]
+  
+  nodes_positive$group <- intervals_pos
+  nodes_positive$color.background <- pos_colors[nodes_positive$group]
+  nodes_positive$color.highlight.background <- pos_colors[nodes_positive$group]
+  nodes_positive$color.hover.background <- pos_colors[nodes_positive$group]
+  
+  nodes <- rbind(nodes_negative, nodes_positive)
+  
+  all_rel_pos_neg <- list("Nodes" = nodes, "Pos_Colors" = pos_colors, "Neg_Colors" = neg_colors, "Borders" = c(levels(intervals_neg), levels(intervals_pos)))
+  return(all_rel_pos_neg)
+}

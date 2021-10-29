@@ -1674,8 +1674,71 @@ server <- function(input, output, session) {
   ######### Color nodes ############
   ##################################
   
-  # The following code has to be placed after the modification options to ensure that when e.g. an edge is added, 
-  # the edgelist_table is updated before the degree is calculated to color the nodes
+  
+  # calculate the different legends
+  output$legend <- renderPlot({
+    if(input$color_nodes == "rel_pos"){
+      # inform user that rel_pos only has values 0
+      if(all(nodelist_table$rel_pos==0)){
+           output$error_only_zeros <- renderUI({
+             HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos' only contains 0. Upload data on nodes with values for 'rel_pos' to use this function! </span>")
+           })
+      # calculate and plot legend
+      }else{
+        colors_and_borders <- get_rel_pos_colors_and_border(small_nodelist_for_graph)
+        plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
+        legend("top", legend = c(colors_and_borders[["Borders"]]), pch=21, pt.cex=2.5, cex=1.5, bty='n',
+                col = "#0a4ea3", ncol = 3, pt.bg =colors_and_borders[["Colors"]])
+        
+        output$range <- renderUI({
+          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(nodelist_table$rel_pos), 1), ")", " - ", "(", round(max(nodelist_table$rel_pos), 1), ")", "</p>"))
+        })
+        
+        # update graph
+        visNetworkProxy("graph") %>%
+           visUpdateNodes(nodes = colors_and_borders[["Nodes"]])
+      }
+    }
+    if(input$color_nodes == "rel_pos_neg"){
+      # inform user that rel_pos_neg only has values 0
+      if(all(nodelist_table$rel_pos_neg==0)){
+        output$error_only_zeros <- renderUI({
+          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos_neg' only contains 0. Upload data on nodes with values for 'rel_pos' to use this function! </span>")
+        })
+      # calculate and plot legend
+      }else{
+        colors_and_borders <- get_rel_pos_neg_colors_and_border(small_nodelist_for_graph)
+        
+        plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
+        legend("top", legend = c(colors_and_borders[["Borders"]]), pch=21, pt.cex=2.5, cex=1.5, bty='n',
+               col = "#0a4ea3", ncol = 4, pt.bg =c(colors_and_borders[["Neg_Colors"]], colors_and_borders[["Pos_Colors"]]) )
+        
+        output$range <- renderUI({
+          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(nodelist_table$rel_pos_neg), 1), ")", " - ", "(", round(max(nodelist_table$rel_pos_neg), 1), ")", "</p>"))
+        })
+        
+        # update graph
+        visNetworkProxy("graph") %>%
+          visUpdateNodes(nodes = colors_and_borders[["Nodes"]])
+      }
+    }
+    if(input$color_nodes == "degree"){
+      # get min-max-values
+      min_rel_pos <- min(nodelist_table$rel_pos)
+      max_rel_pos <- max(nodelist_table$rel_pos)
+        
+      plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
+      legend("top",inset = -0.67, legend =c(as.character(min_rel_pos), as.character(max_rel_pos)), pch=16, pt.cex=2.5, cex=1.5, bty='n',
+              col = c('orange', 'blue'), ncol = 2)
+    }
+  })
+  # this makes sure that there is no empty whitespace placeholder where the legend 
+  # should be in case that "one color (default)" is selected
+  output$uilegend <- renderUI({
+    if("rel_pos" %in% input$color_nodes | "rel_pos_neg" %in% input$color_nodes | "degree" %in% input$color_nodes){
+      plotOutput(outputId = "legend", height= "250px")
+    }
+  })
   
   # system reaction depending on the selected attribute to color the nodes by ---------------------------------- 
   observeEvent({ # the events that trigger this
@@ -1687,421 +1750,422 @@ server <- function(input, output, session) {
     input$confirm_node_addition
     input$confirm_node_deletion
     }, {
-    
-    nodes <- nodelist_table
-    edges <- edgelist_table
-    
-    # OPTION 1: rel_pos is selected
-    if (input$color_nodes == "rel_pos") {
       
-      # check whether 'rel_pos' is a column with only zeros
-      if (all(nodes$rel_pos_neg == 0)) {
-        
-        # inform user that rel_pos only has values 0
-        output$error_only_zeros <- renderUI({
-          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos' only contains 0. Upload data on nodes with values for 'rel_pos' to use this function! </span>")
-        })
-        
-        # initial colors
-        nodes$group <- c(rep("A", nrow(nodes)))
-        nodes$color.background <- c(rep("#f5f6f7", nrow(nodes)))
-        nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
-        nodes$color.highlight.background <- c(rep("#f5f6f7", nrow(nodes)))
-        nodes$color.hover.background <- c(rep("#f5f6f7", nrow(nodes)))
-        nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
-        nodes$color.hover.border <- c(rep("red", nrow(nodes)))
-        
-        # update graph
-        visNetworkProxy("graph") %>%
-          visUpdateNodes(nodes = nodes)
-        
-        # empty legend content for the case that another data set was uploaded before and this function was used during that time
-        output$lowest_rel_pos <- renderUI({
-          HTML("")
-        })
-        output$low_rel_pos <- renderUI({
-          HTML("")
-        })
-        output$middle_rel_pos <- renderUI({
-          HTML("")
-        })
-        output$high_rel_pos <- renderUI({
-          HTML("")
-        })
-        output$highest_rel_pos <- renderUI({
-          HTML("")
-        })
-        
-        # empty range
-        output$range <- renderUI({
-          HTML("")
-        })
-      } else {
-        
-        # define amount of different groups to differentiate by color and set the same amount of colors
-        amount <- 5
-        pos_groups <- letters[1:amount]
-        pos_colors <- c("#FAFAFA", "#E0E0E0", "#9E9E9E", "#616161", "#212121")
-        
-        # map a color to each group
-        names(pos_colors) <- pos_groups
-        
-        # determine borders for the differentiation into groups
-        rel_pos_values <- nodes[, 3]
-        max_rel_pos <- max(rel_pos_values, na.rm = TRUE)
-        min_rel_pos <- min(rel_pos_values, na.rm = TRUE)
-        range <- max_rel_pos - min_rel_pos
-        borders <- c(round(min_rel_pos + ((0:(amount) / (amount)) * range), 1))
-        
-        # classify all nodes into groups with different colors
-        nodes$group <- pos_groups[1]
-        for (i in 1:(amount)) {
-          b <- borders[i]
-          nodes$group[nodes$rel_pos >= b] <- pos_groups[i]
-        }
-        nodes$color.background <- pos_colors[nodes$group]
-        nodes$color.highlight.background <- pos_colors[nodes$group]
-        nodes$color.hover.background <- pos_colors[nodes$group]
-        
-        # all border colors remain unchanged
-        nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
-        nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
-        nodes$color.hover.border <- c(rep("red", nrow(nodes)))
-        
-        # create legend content
-        output$lowest_rel_pos <- renderUI({
-          HTML(paste0("<p><b>", "< ", borders[2], "</b></p>"))
-        })
-        output$low_rel_pos <- renderUI({
-          HTML(paste0("<p><b>", "< ", borders[3], "</b></p>"))
-        })
-        output$middle_rel_pos <- renderUI({
-          HTML(paste0("<p><b>", "< ", borders[4], "</b></p>"))
-        })
-        output$high_rel_pos <- renderUI({
-          HTML(paste0("<p><b>", "< ", borders[5], "</b></p>"))
-        })
-        output$highest_rel_pos <- renderUI({
-          HTML(paste0("<p><b>", "< ", ceiling(borders[6]), "</b></p>"))
-        })
-        
-        # range
-        output$range <- renderUI({
-          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(borders[1], 1), ")", " - ", "(", round(borders[6], 1), ")", "</p>"))
-        })
-        
-        # update graph
-        visNetworkProxy("graph") %>%
-          visUpdateNodes(nodes = nodes)
-      }
-      
-      ##########
-      
-      # OPTION 2: rel_pos_neg is selected
-    } else if (input$color_nodes == "rel_pos_neg") {
-      
-      # check whether 'rel_pos_neg' is a column with only zeros
-      if (all(nodes$rel_pos_neg == 0)) {
-        
-        # inform user that rel_pos_neg only has values 0
-        output$error_only_zeros <- renderUI({
-          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos_neg' only contains 0. Upload data on nodes with values for 'rel_pos_neg' to use this function! </span>")
-        })
-        
-        # initial colors
-        nodes$group <- c(rep("A", nrow(nodes)))
-        nodes$color.background <- c(rep("#f5f6f7", nrow(nodes)))
-        nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
-        nodes$color.highlight.background <- c(rep("#f5f6f7", nrow(nodes)))
-        nodes$color.hover.background <- c(rep("#f5f6f7", nrow(nodes)))
-        nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
-        nodes$color.hover.border <- c(rep("red", nrow(nodes)))
-        
-        # update graph
-        #visNetworkProxy("graph") %>%
-        #  visUpdateNodes(nodes = nodes)
-        
-        # empty legend content for negative values for the case that another data set was uploaded before and this function was used during that time
-        output$neg_highest_relevance <- renderUI({
-          HTML("")
-        })
-        output$neg_high_relevance <- renderUI({
-          HTML("")
-        })
-        output$neg_middle_relevance <- renderUI({
-          HTML("")
-        })
-        output$neg_low_relevance <- renderUI({
-          HTML("")
-        })
-        output$neg_lowest_relevance <- renderUI({
-          HTML("")
-        })
-        
-        # empty legend content for positive values for the case that another data set was uploaded before and this function was used during that time
-        output$pos_lowest_relevance <- renderUI({
-          HTML("")
-        })
-        output$pos_low_relevance <- renderUI({
-          HTML("")
-        })
-        output$pos_middle_relevance <- renderUI({
-          HTML("")
-        })
-        output$pos_high_relevance <- renderUI({
-          HTML("")
-        })
-        output$pos_highest_relevance <- renderUI({
-          HTML("")
-        })
-        
-        # empty range
-        output$range <- renderUI({
-          HTML("")
-        })
-      } else {
-        
-        # divide data frame "nodes" into nodes having positive vs. negative relevance values
-        nodes_positive <- nodes[which(nodes$rel_pos_neg >= 0), ]
-        nodes_negative <- nodes[which(nodes$rel_pos_neg < 0), ]
-        
-        # define amount of different groups to differentiate by color
-        amount <- 5
-        
-        # define groups and colors for nodes with negative relevance values (darkest color on position 1 of vector)
-        neg_groups <- letters[1:amount]
-        neg_colors <- c("#0D47A1", "#1976D2", "#2196F3", "#90CAF9", "#E3F2FD")
-        
-        # define groups and colors for nodes with positive relevance values (lightest color on position 1 of vector)
-        pos_groups <- letters[1:amount]
-        pos_colors <- c("#FFEBEE", "#FFCDD2", "#E57373", "#D32F2F", "#B71C1C")
-        
-        # map a color to each group
-        names(neg_colors) <- neg_groups
-        names(pos_colors) <- pos_groups
-        
-        # determine borders for the differentiation into groups of NEGATIVE values
-        neg_rel_values <- nodes_negative[, 4]
-        max_rel_neg <- min(neg_rel_values, na.rm = TRUE) # highly negative
-        min_rel_neg <- max(neg_rel_values, na.rm = TRUE) # closer to zero
-        range <- max_rel_neg - min_rel_neg
-        neg_borders <- c(round(min_rel_neg + ((0:(amount) / (amount)) * range), 1))
-        neg_borders <- sort(neg_borders)
-        
-        # determine borders for the differentiation into groups of POSITIVE values
-        pos_rel_values <- nodes_positive[, 4]
-        max_rel_pos <- max(pos_rel_values, na.rm = TRUE)
-        min_rel_pos <- min(pos_rel_values, na.rm = TRUE)
-        range <- max_rel_pos - min_rel_pos
-        pos_borders <- c(round(min_rel_pos + ((0:(amount) / (amount)) * range), 1))
-        
-        # classify all nodes with NEGATIVE relevance values into groups with different colors, all border colors remain unchanged
-        nodes_negative$group <- neg_groups[1]
-        for (i in 1:(amount)) {
-          b <- neg_borders[i]
-          nodes_negative$group[nodes_negative$rel_pos_neg >= b] <- neg_groups[i]
-        }
-        nodes_negative$color.background <- neg_colors[nodes_negative$group]
-        nodes_negative$color.highlight.background <- neg_colors[nodes_negative$group]
-        nodes_negative$color.hover.background <- neg_colors[nodes_negative$group]
-        
-        # classify all nodes with POSITIVE relevance values into groups with different colors, all border colors remain unchanged
-        nodes_positive$group <- pos_groups[1]
-        for (i in 1:(amount)) {
-          b <- pos_borders[i]
-          nodes_positive$group[nodes_positive$rel_pos_neg >= b] <- pos_groups[i]
-        }
-        nodes_positive$color.background <- pos_colors[nodes_positive$group]
-        nodes_positive$color.highlight.background <- pos_colors[nodes_positive$group]
-        nodes_positive$color.hover.background <- pos_colors[nodes_positive$group]
-        
-        # merge all nodes into one data frame again
-        nodes <- rbind(nodes_negative, nodes_positive)
-        nodes <- nodes[order(nodes$label), ]
-        
-        # all border colors remain unchanged
-        nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
-        nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
-        nodes$color.hover.border <- c(rep("red", nrow(nodes)))
-        
-        
-        # create legend content for negative values
-        output$neg_highest_relevance <- renderUI({
-          HTML(paste0("<p><b>", "> ", floor(neg_borders[1]), "</b></p>"))
-        })
-        output$neg_high_relevance <- renderUI({
-          HTML(paste0("<p><b>", "> ", neg_borders[2], "</b></p>"))
-        })
-        output$neg_middle_relevance <- renderUI({
-          HTML(paste0("<p><b>", "> ", neg_borders[3], "</b></p>"))
-        })
-        output$neg_low_relevance <- renderUI({
-          HTML(paste0("<p><b>", "> ", neg_borders[4], "</b></p>"))
-        })
-        output$neg_lowest_relevance <- renderUI({
-          HTML(paste0("<p><b>", "> ", neg_borders[5], "</b></p>"))
-        })
-        
-        # zeros
-        output$relevance_zero <- renderUI({
-          HTML(paste0("<p><b>", "0", "</b></p>"))
-        })
-        
-        # create legend content for positive values
-        output$pos_lowest_relevance <- renderUI({
-          HTML(paste0("<p><b>", "< ", pos_borders[2], "</b></p>"))
-        })
-        output$pos_low_relevance <- renderUI({
-          HTML(paste0("<p><b>", "< ", pos_borders[3], "</b></p>"))
-        })
-        output$pos_middle_relevance <- renderUI({
-          HTML(paste0("<p><b>", "< ", pos_borders[4], "</b></p>"))
-        })
-        output$pos_high_relevance <- renderUI({
-          HTML(paste0("<p><b>", "< ", pos_borders[5], "</b></p>"))
-        })
-        output$pos_highest_relevance <- renderUI({
-          HTML(paste0("<p><b>", "< ", ceiling(pos_borders[6]), "</b></p>"))
-        })
-        
-        # range
-        output$range <- renderUI({
-          HTML(paste0("<p><b>", "Range: ", "</b>", "(", neg_borders[1], ")", " - ", "(", pos_borders[6], ")", "</p>"))
-        })
-        
-        # update graph
-        #visNetworkProxy("graph") %>%
-        #  visUpdateNodes(nodes = nodes)
-      }
-      
-      ##########
-      
-      # OPTION 3: degree is selected
-    } else if (input$color_nodes == "degree") {
-      
-      # create empty column for degree values
-      nodes$degree <- c(rep(0))
-      
-      # calculate degree: count number of interaction partner for each node
-      for (index in 1:nrow(edges)) {
-        nodes$degree[which(nodes$id == edges$from[index])] <- nodes$degree[which(nodes$id == edges$from[index])] + 1
-        nodes$degree[which(nodes$id == edges$to[index])] <- nodes$degree[which(nodes$id == edges$to[index])] + 1
-      }
-      
-      # define amount of different groups to differentiate by color and set the same amount of colors
-      amount <- 5
-      groups <- letters[1:amount]
-      colors <- c("#E1F5FE", "#B3E5FC", "#29B6F6", "#0288D1", "#01579B")
-      
-      # map a color to each group
-      names(colors) <- groups
-      
-      # determine borders for the differentiation into groups
-      degree_values <- nodes[, ncol(nodes)]
-      max_degree <- max(degree_values, na.rm = TRUE)
-      min_degree <- min(degree_values, na.rm = TRUE)
-      range <- max_degree - min_degree
-      borders <- c(round(min_degree + ((0:(amount) / (amount)) * range)))
-      borders <- unique(borders)
-      
-      # classify all nodes into groups with different colors
-      for (i in 1:(amount)) {
-        b <- borders[i]
-        nodes$group[nodes$degree >= b] <- groups[i]
-      }
-      nodes$color.background <- colors[nodes$group]
-      nodes$color.highlight.background <- colors[nodes$group]
-      nodes$color.hover.background <- colors[nodes$group]
-      
-      # all border colors remain unchanged
-      nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
-      nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
-      nodes$color.hover.border <- c(rep("red", nrow(nodes)))
-      
-      # create legend content
-      output$lowest_degree <- renderUI({
-        HTML(paste0("<p><span><b>", "&#8805; ", borders[1], "</b></span></p>"))
-      })
-      if (length(borders) >= 2) {
-        output$low_degree <- renderUI({
-          HTML(paste0("<p><span><b>", "&#8805; ", borders[2], "</b></span></p>"))
-        })
-      } else {
-        output$low_degree <- renderUI({
-          HTML(paste0("<p><b>", " - ", "</b></p>"))
-        })
-      }
-      
-      if (length(borders) >= 3) {
-        output$middle_degree <- renderUI({
-          HTML(paste0("<p><span><b>", "&#8805; ", borders[3], "</b></span></p>"))
-        })
-      } else {
-        output$middle_degree <- renderUI({
-          HTML(paste0("<p><b>", " - ", "</b></p>"))
-        })
-      }
-      if (length(borders) >= 4) {
-        output$high_degree <- renderUI({
-          HTML(paste0("<p><span><b>", "&#8805; ", borders[4], "</b></span></p>"))
-        })
-      } else {
-        output$high_degree <- renderUI({
-          HTML(paste0("<p><b>", " - ", "</b></p>"))
-        })
-      }
-      if (length(borders) >= 5) {
-        output$highest_degree <- renderUI({
-          HTML(paste0("<p><span><b>", "&#8805; ", borders[5], "</b></span></p>"))
-        })
-      } else {
-        output$highest_degree <- renderUI({
-          HTML(paste0("<p><b>", " - ", "</b></p>"))
-        })
-      }
-      
-      # range
-      output$range <- renderUI({
-        HTML(paste0("<p><b>", "Range: ", "</b>", "(", min_degree, ")", " - ", "(", max_degree, ")", "</p>"))
-      })
-      
-      # update graph
-      #visNetworkProxy("graph") %>%
-      #  visUpdateNodes(nodes = nodes)
-      
-      # clear any printed messages that inform the user on errors regarding the color nodes function
-      output$error_only_zeros <- renderUI({
-        HTML(" ")
-      })
-      
-      ##########
-      
-      # OPTION 4: one color (default) is selected
-    } else if (input$color_nodes == "one color (default)") {
-      
-      # initial colors
-      nodes$group <- c(rep("A", nrow(nodes)))
-      nodes$color.background <- c(rep("#f5f6f7", nrow(nodes)))
-      nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
-      nodes$color.highlight.background <- c(rep("#f5f6f7", nrow(nodes)))
-      nodes$color.hover.background <- c(rep("#f5f6f7", nrow(nodes)))
-      nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
-      nodes$color.hover.border <- c(rep("red", nrow(nodes)))
-      
-      # update graph
-      #visNetworkProxy("graph") %>%
-      #  visUpdateNodes(nodes = nodes)
-      
-      # clear any printed messages that inform the user on errors regarding the color nodes function
-      output$error_only_zeros <- renderUI({
-        HTML(" ")
-      })
-      
-      # empty range
-      output$range <- renderUI({
-        HTML("")
-      })
-    }
+    # 
+    # nodes <- nodelist_table
+    # edges <- edgelist_table
+    # 
+    # # OPTION 1: rel_pos is selected
+    # if (input$color_nodes == "rel_pos") {
+    #   
+    #   # check whether 'rel_pos' is a column with only zeros
+    #   if (all(nodes$rel_pos_neg == 0)) {
+    #     
+    #     # inform user that rel_pos only has values 0
+    #     output$error_only_zeros <- renderUI({
+    #       HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos' only contains 0. Upload data on nodes with values for 'rel_pos' to use this function! </span>")
+    #     })
+    #     
+    #     # initial colors
+    #     nodes$group <- c(rep("A", nrow(nodes)))
+    #     nodes$color.background <- c(rep("#f5f6f7", nrow(nodes)))
+    #     nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+    #     nodes$color.highlight.background <- c(rep("#f5f6f7", nrow(nodes)))
+    #     nodes$color.hover.background <- c(rep("#f5f6f7", nrow(nodes)))
+    #     nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+    #     nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+    #     
+    #     # update graph
+    #     visNetworkProxy("graph") %>%
+    #       visUpdateNodes(nodes = nodes)
+    #     
+    #     # empty legend content for the case that another data set was uploaded before and this function was used during that time
+    #     output$lowest_rel_pos <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$low_rel_pos <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$middle_rel_pos <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$high_rel_pos <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$highest_rel_pos <- renderUI({
+    #       HTML("")
+    #     })
+    #     
+    #     # empty range
+    #     output$range <- renderUI({
+    #       HTML("")
+    #     })
+    #   } else {
+    #     
+    #     # define amount of different groups to differentiate by color and set the same amount of colors
+    #     amount <- 5
+    #     pos_groups <- letters[1:amount]
+    #     pos_colors <- c("#FAFAFA", "#E0E0E0", "#9E9E9E", "#616161", "#212121")
+    #     
+    #     # map a color to each group
+    #     names(pos_colors) <- pos_groups
+    #     
+    #     # determine borders for the differentiation into groups
+    #     rel_pos_values <- nodes[, 3]
+    #     max_rel_pos <- max(rel_pos_values, na.rm = TRUE)
+    #     min_rel_pos <- min(rel_pos_values, na.rm = TRUE)
+    #     range <- max_rel_pos - min_rel_pos
+    #     borders <- c(round(min_rel_pos + ((0:(amount) / (amount)) * range), 1))
+    #     
+    #     # classify all nodes into groups with different colors
+    #     nodes$group <- pos_groups[1]
+    #     for (i in 1:(amount)) {
+    #       b <- borders[i]
+    #       nodes$group[nodes$rel_pos >= b] <- pos_groups[i]
+    #     }
+    #     nodes$color.background <- pos_colors[nodes$group]
+    #     nodes$color.highlight.background <- pos_colors[nodes$group]
+    #     nodes$color.hover.background <- pos_colors[nodes$group]
+    #     
+    #     # all border colors remain unchanged
+    #     nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+    #     nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+    #     nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+    #     
+    #     # create legend content
+    #     output$lowest_rel_pos <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", borders[2], "</b></p>"))
+    #     })
+    #     output$low_rel_pos <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", borders[3], "</b></p>"))
+    #     })
+    #     output$middle_rel_pos <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", borders[4], "</b></p>"))
+    #     })
+    #     output$high_rel_pos <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", borders[5], "</b></p>"))
+    #     })
+    #     output$highest_rel_pos <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", ceiling(borders[6]), "</b></p>"))
+    #     })
+    #     
+    #     # range
+    #     output$range <- renderUI({
+    #       HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(borders[1], 1), ")", " - ", "(", round(borders[6], 1), ")", "</p>"))
+    #     })
+    #     
+    #     # update graph
+    #     visNetworkProxy("graph") %>%
+    #       visUpdateNodes(nodes = nodes)
+    #   }
+    #   
+    #   ##########
+    #   
+    #   # OPTION 2: rel_pos_neg is selected
+    # } else if (input$color_nodes == "rel_pos_neg") {
+    #   
+    #   # check whether 'rel_pos_neg' is a column with only zeros
+    #   if (all(nodes$rel_pos_neg == 0)) {
+    #     
+    #     # inform user that rel_pos_neg only has values 0
+    #     output$error_only_zeros <- renderUI({
+    #       HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos_neg' only contains 0. Upload data on nodes with values for 'rel_pos_neg' to use this function! </span>")
+    #     })
+    #     
+    #     # initial colors
+    #     nodes$group <- c(rep("A", nrow(nodes)))
+    #     nodes$color.background <- c(rep("#f5f6f7", nrow(nodes)))
+    #     nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+    #     nodes$color.highlight.background <- c(rep("#f5f6f7", nrow(nodes)))
+    #     nodes$color.hover.background <- c(rep("#f5f6f7", nrow(nodes)))
+    #     nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+    #     nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+    #     
+    #     # update graph
+    #     #visNetworkProxy("graph") %>%
+    #     #  visUpdateNodes(nodes = nodes)
+    #     
+    #     # empty legend content for negative values for the case that another data set was uploaded before and this function was used during that time
+    #     output$neg_highest_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$neg_high_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$neg_middle_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$neg_low_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$neg_lowest_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     
+    #     # empty legend content for positive values for the case that another data set was uploaded before and this function was used during that time
+    #     output$pos_lowest_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$pos_low_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$pos_middle_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$pos_high_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     output$pos_highest_relevance <- renderUI({
+    #       HTML("")
+    #     })
+    #     
+    #     # empty range
+    #     output$range <- renderUI({
+    #       HTML("")
+    #     })
+    #   } else {
+    #     
+    #     # divide data frame "nodes" into nodes having positive vs. negative relevance values
+    #     nodes_positive <- nodes[which(nodes$rel_pos_neg >= 0), ]
+    #     nodes_negative <- nodes[which(nodes$rel_pos_neg < 0), ]
+    #     
+    #     # define amount of different groups to differentiate by color
+    #     amount <- 5
+    #     
+    #     # define groups and colors for nodes with negative relevance values (darkest color on position 1 of vector)
+    #     neg_groups <- letters[1:amount]
+    #     neg_colors <- c("#0D47A1", "#1976D2", "#2196F3", "#90CAF9", "#E3F2FD")
+    #     
+    #     # define groups and colors for nodes with positive relevance values (lightest color on position 1 of vector)
+    #     pos_groups <- letters[1:amount]
+    #     pos_colors <- c("#FFEBEE", "#FFCDD2", "#E57373", "#D32F2F", "#B71C1C")
+    #     
+    #     # map a color to each group
+    #     names(neg_colors) <- neg_groups
+    #     names(pos_colors) <- pos_groups
+    #     
+    #     # determine borders for the differentiation into groups of NEGATIVE values
+    #     neg_rel_values <- nodes_negative[, 4]
+    #     max_rel_neg <- min(neg_rel_values, na.rm = TRUE) # highly negative
+    #     min_rel_neg <- max(neg_rel_values, na.rm = TRUE) # closer to zero
+    #     range <- max_rel_neg - min_rel_neg
+    #     neg_borders <- c(round(min_rel_neg + ((0:(amount) / (amount)) * range), 1))
+    #     neg_borders <- sort(neg_borders)
+    #     
+    #     # determine borders for the differentiation into groups of POSITIVE values
+    #     pos_rel_values <- nodes_positive[, 4]
+    #     max_rel_pos <- max(pos_rel_values, na.rm = TRUE)
+    #     min_rel_pos <- min(pos_rel_values, na.rm = TRUE)
+    #     range <- max_rel_pos - min_rel_pos
+    #     pos_borders <- c(round(min_rel_pos + ((0:(amount) / (amount)) * range), 1))
+    #     
+    #     # classify all nodes with NEGATIVE relevance values into groups with different colors, all border colors remain unchanged
+    #     nodes_negative$group <- neg_groups[1]
+    #     for (i in 1:(amount)) {
+    #       b <- neg_borders[i]
+    #       nodes_negative$group[nodes_negative$rel_pos_neg >= b] <- neg_groups[i]
+    #     }
+    #     nodes_negative$color.background <- neg_colors[nodes_negative$group]
+    #     nodes_negative$color.highlight.background <- neg_colors[nodes_negative$group]
+    #     nodes_negative$color.hover.background <- neg_colors[nodes_negative$group]
+    #     
+    #     # classify all nodes with POSITIVE relevance values into groups with different colors, all border colors remain unchanged
+    #     nodes_positive$group <- pos_groups[1]
+    #     for (i in 1:(amount)) {
+    #       b <- pos_borders[i]
+    #       nodes_positive$group[nodes_positive$rel_pos_neg >= b] <- pos_groups[i]
+    #     }
+    #     nodes_positive$color.background <- pos_colors[nodes_positive$group]
+    #     nodes_positive$color.highlight.background <- pos_colors[nodes_positive$group]
+    #     nodes_positive$color.hover.background <- pos_colors[nodes_positive$group]
+    #     
+    #     # merge all nodes into one data frame again
+    #     nodes <- rbind(nodes_negative, nodes_positive)
+    #     nodes <- nodes[order(nodes$label), ]
+    #     
+    #     # all border colors remain unchanged
+    #     nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+    #     nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+    #     nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+    #     
+    #     
+    #     # create legend content for negative values
+    #     output$neg_highest_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "> ", floor(neg_borders[1]), "</b></p>"))
+    #     })
+    #     output$neg_high_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "> ", neg_borders[2], "</b></p>"))
+    #     })
+    #     output$neg_middle_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "> ", neg_borders[3], "</b></p>"))
+    #     })
+    #     output$neg_low_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "> ", neg_borders[4], "</b></p>"))
+    #     })
+    #     output$neg_lowest_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "> ", neg_borders[5], "</b></p>"))
+    #     })
+    #     
+    #     # zeros
+    #     output$relevance_zero <- renderUI({
+    #       HTML(paste0("<p><b>", "0", "</b></p>"))
+    #     })
+    #     
+    #     # create legend content for positive values
+    #     output$pos_lowest_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", pos_borders[2], "</b></p>"))
+    #     })
+    #     output$pos_low_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", pos_borders[3], "</b></p>"))
+    #     })
+    #     output$pos_middle_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", pos_borders[4], "</b></p>"))
+    #     })
+    #     output$pos_high_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", pos_borders[5], "</b></p>"))
+    #     })
+    #     output$pos_highest_relevance <- renderUI({
+    #       HTML(paste0("<p><b>", "< ", ceiling(pos_borders[6]), "</b></p>"))
+    #     })
+    #     
+    #     # range
+    #     output$range <- renderUI({
+    #       HTML(paste0("<p><b>", "Range: ", "</b>", "(", neg_borders[1], ")", " - ", "(", pos_borders[6], ")", "</p>"))
+    #     })
+    #     
+    #     # update graph
+    #     #visNetworkProxy("graph") %>%
+    #     #  visUpdateNodes(nodes = nodes)
+    #   }
+    #   
+    #   ##########
+    #   
+    #   # OPTION 3: degree is selected
+    # } else if (input$color_nodes == "degree") {
+    #   
+    #   # create empty column for degree values
+    #   nodes$degree <- c(rep(0))
+    #   
+    #   # calculate degree: count number of interaction partner for each node
+    #   for (index in 1:nrow(edges)) {
+    #     nodes$degree[which(nodes$id == edges$from[index])] <- nodes$degree[which(nodes$id == edges$from[index])] + 1
+    #     nodes$degree[which(nodes$id == edges$to[index])] <- nodes$degree[which(nodes$id == edges$to[index])] + 1
+    #   }
+    #   
+    #   # define amount of different groups to differentiate by color and set the same amount of colors
+    #   amount <- 5
+    #   groups <- letters[1:amount]
+    #   colors <- c("#E1F5FE", "#B3E5FC", "#29B6F6", "#0288D1", "#01579B")
+    #   
+    #   # map a color to each group
+    #   names(colors) <- groups
+    #   
+    #   # determine borders for the differentiation into groups
+    #   degree_values <- nodes[, ncol(nodes)]
+    #   max_degree <- max(degree_values, na.rm = TRUE)
+    #   min_degree <- min(degree_values, na.rm = TRUE)
+    #   range <- max_degree - min_degree
+    #   borders <- c(round(min_degree + ((0:(amount) / (amount)) * range)))
+    #   borders <- unique(borders)
+    #   
+    #   # classify all nodes into groups with different colors
+    #   for (i in 1:(amount)) {
+    #     b <- borders[i]
+    #     nodes$group[nodes$degree >= b] <- groups[i]
+    #   }
+    #   nodes$color.background <- colors[nodes$group]
+    #   nodes$color.highlight.background <- colors[nodes$group]
+    #   nodes$color.hover.background <- colors[nodes$group]
+    #   
+    #   # all border colors remain unchanged
+    #   nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+    #   nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+    #   nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+    #   
+    #   # create legend content
+    #   output$lowest_degree <- renderUI({
+    #     HTML(paste0("<p><span><b>", "&#8805; ", borders[1], "</b></span></p>"))
+    #   })
+    #   if (length(borders) >= 2) {
+    #     output$low_degree <- renderUI({
+    #       HTML(paste0("<p><span><b>", "&#8805; ", borders[2], "</b></span></p>"))
+    #     })
+    #   } else {
+    #     output$low_degree <- renderUI({
+    #       HTML(paste0("<p><b>", " - ", "</b></p>"))
+    #     })
+    #   }
+    #   
+    #   if (length(borders) >= 3) {
+    #     output$middle_degree <- renderUI({
+    #       HTML(paste0("<p><span><b>", "&#8805; ", borders[3], "</b></span></p>"))
+    #     })
+    #   } else {
+    #     output$middle_degree <- renderUI({
+    #       HTML(paste0("<p><b>", " - ", "</b></p>"))
+    #     })
+    #   }
+    #   if (length(borders) >= 4) {
+    #     output$high_degree <- renderUI({
+    #       HTML(paste0("<p><span><b>", "&#8805; ", borders[4], "</b></span></p>"))
+    #     })
+    #   } else {
+    #     output$high_degree <- renderUI({
+    #       HTML(paste0("<p><b>", " - ", "</b></p>"))
+    #     })
+    #   }
+    #   if (length(borders) >= 5) {
+    #     output$highest_degree <- renderUI({
+    #       HTML(paste0("<p><span><b>", "&#8805; ", borders[5], "</b></span></p>"))
+    #     })
+    #   } else {
+    #     output$highest_degree <- renderUI({
+    #       HTML(paste0("<p><b>", " - ", "</b></p>"))
+    #     })
+    #   }
+    #   
+    #   # range
+    #   output$range <- renderUI({
+    #     HTML(paste0("<p><b>", "Range: ", "</b>", "(", min_degree, ")", " - ", "(", max_degree, ")", "</p>"))
+    #   })
+    #   
+    #   # update graph
+    #   #visNetworkProxy("graph") %>%
+    #   #  visUpdateNodes(nodes = nodes)
+    #   
+    #   # clear any printed messages that inform the user on errors regarding the color nodes function
+    #   output$error_only_zeros <- renderUI({
+    #     HTML(" ")
+    #   })
+    #   
+    #   ##########
+    #   
+    #   # OPTION 4: one color (default) is selected
+    # } else if (input$color_nodes == "one color (default)") {
+    #   
+    #   # initial colors
+    #   nodes$group <- c(rep("A", nrow(nodes)))
+    #   nodes$color.background <- c(rep("#f5f6f7", nrow(nodes)))
+    #   nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+    #   nodes$color.highlight.background <- c(rep("#f5f6f7", nrow(nodes)))
+    #   nodes$color.hover.background <- c(rep("#f5f6f7", nrow(nodes)))
+    #   nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+    #   nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+    #   
+    #   # update graph
+    #   #visNetworkProxy("graph") %>%
+    #   #  visUpdateNodes(nodes = nodes)
+    #   
+    #   # clear any printed messages that inform the user on errors regarding the color nodes function
+    #   output$error_only_zeros <- renderUI({
+    #     HTML(" ")
+    #   })
+    #   
+    #   # empty range
+    #   output$range <- renderUI({
+    #     HTML("")
+    #   })
+    #}
   })
   
   ############################################

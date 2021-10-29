@@ -9,6 +9,7 @@ library(zip)
 library(rje)
 library(png)
 
+
 ui <- fluidPage(
   
   # activate the function to dis/enable tabs
@@ -187,54 +188,25 @@ ui <- fluidPage(
                       fluidRow(
                         column(12,
                                column(8,
+                                      fluidRow(
+                                        # graph object
+                                        visNetworkOutput("graph"),
+                                        
+                                        # output legend
+                                        uiOutput(outputId = "uilegend"),
+                                        # table with data on edges
+                                        div(style = "margin-top:-8em",
+                                          tags$h3("Data on Edges"),
+                                          tags$p("Hint: One node label can occur multiple times in both columns 'from' and 'to'. Use search function to view all edges of a node.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
+                                          dataTableOutput("edge_feature_overview"),
+                                          br()
+                                        ),
+                                        
+                                        # table with data on nodes
+                                        tags$h3("Data on Nodes"),
+                                        dataTableOutput("feature_overview")
+                                      )
                                       
-                                      # graph object
-                                      visNetworkOutput("graph"),
-                                      
-                                      # legend for rel_pos with sequential color palette "Gray"
-                                      conditionalPanel(condition = "input.color_nodes == 'rel_pos'", align = "center",
-                                                       tags$div(style = {"background-color:#FAFAFA; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("lowest_rel_pos", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#E0E0E0; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("low_rel_pos", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#9E9E9E; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("middle_rel_pos", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#616161; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("high_rel_pos", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle; color:white;"})),
-                                                       tags$div(style = {"background-color:#212121; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("highest_rel_pos", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle; color:white;"}))
-                                      ),
-                                      # legend for rel_pos_neg with diverging color palette from "Blue" to "Red"
-                                      conditionalPanel(condition = "input.color_nodes == 'rel_pos_neg'", align = "center",
-                                                       # negative values
-                                                       tags$div(style = {"background-color:#0D47A1; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("neg_highest_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle; color:white;"})),
-                                                       tags$div(style = {"background-color:#1976D2; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("neg_high_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle; color:white;"})),
-                                                       tags$div(style = {"background-color:#2196F3; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("neg_middle_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#90CAF9; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("neg_low_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#E3F2FD; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("neg_lowest_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       # zero
-                                                       tags$div(style = {"background-color:white; text-align: center; display:inline-block; width: 10px;"}, htmlOutput("relevance_zero", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       # positive values
-                                                       tags$div(style = {"background-color:#FFEBEE; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("pos_lowest_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#FFCDD2; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("pos_low_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#E57373; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("pos_middle_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#D32F2F; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("pos_high_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle; color:white;"})),
-                                                       tags$div(style = {"background-color:#B71C1C; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("pos_highest_relevance", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle; color:white;"}))
-                                      ),
-                                      # legend for degree with sequential color palette "Light Blue"
-                                      conditionalPanel(condition = "input.color_nodes == 'degree'", align = "center",
-                                                       tags$div(style = {"background-color:#E1F5FE; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("lowest_degree", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#B3E5FC; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("low_degree", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#29B6F6; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("middle_degree", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle;"})),
-                                                       tags$div(style = {"background-color:#0288D1; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("high_degree", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle; color:white;"})),
-                                                       tags$div(style = {"background-color:#01579B; text-align: center; display:inline-block; width: 60px;"}, htmlOutput("highest_degree", style = {"margin-top:5px; margin-bottom:0px; vertical-align: middle; color:white;"}))
-                                      ),
-                                      br(),
-                                      
-                                      # table with data on edges
-                                      tags$h3("Data on Edges"),
-                                      tags$p("Hint: One node label can occur multiple times in both columns 'from' and 'to'. Use search function to view all edges of a node.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
-                                      dataTableOutput("edge_feature_overview"),
-                                      br(),
-                                      
-                                      # table with data on nodes
-                                      tags$h3("Data on Nodes"),
-                                      dataTableOutput("feature_overview")
                                ),
                                
                                # side bar on the right
@@ -268,6 +240,7 @@ ui <- fluidPage(
                                                                       "degree"
                                                                     )
                                                         ),
+                                                        
                                                         # print the value range of the selected attribute in the current data set
                                                         htmlOutput("range")
                                                  ),
