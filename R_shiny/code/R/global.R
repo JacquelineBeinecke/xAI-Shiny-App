@@ -118,7 +118,7 @@ update_edge_tooltip <- function(nodelist, edgelist){
   edges_tooltip <- edges_tooltip[, c(5, 3, 4)]
   
   
-  for (index in 1:ncol(edges_tooltip)) {
+  for(index in 1:ncol(edges_tooltip)){
     string <- paste0(string, "<p><b>", colnames(edges_tooltip)[index], ": ", "</b>", as.character(edges_tooltip[1:nrow(edges_tooltip), index]), "</p>")
   }
   
@@ -146,6 +146,10 @@ get_rel_pos_colors_and_border <- function(nodelist){
   nodes$color.background <- pos_colors[nodes$group]
   nodes$color.highlight.background <- pos_colors[nodes$group]
   nodes$color.hover.background <- pos_colors[nodes$group]
+  # all border colors remain unchanged
+  nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+  nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+  nodes$color.hover.border <- c(rep("red", nrow(nodes)))
   
   all_rel_pos <- list("Nodes" = nodes, "Colors" = pos_colors, "Borders" = levels(intervals))
   return(all_rel_pos)
@@ -184,6 +188,56 @@ get_rel_pos_neg_colors_and_border <- function(nodelist){
   
   nodes <- rbind(nodes_negative, nodes_positive)
   
+  # all border colors remain unchanged
+  nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+  nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+  nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+  
   all_rel_pos_neg <- list("Nodes" = nodes, "Pos_Colors" = pos_colors, "Neg_Colors" = neg_colors, "Borders" = c(levels(intervals_neg), levels(intervals_pos)))
   return(all_rel_pos_neg)
+}
+
+get_degree_colors_and_border <- function(nodelist){
+  nodes <- nodelist
+  # define amount of different groups to differentiate by color and set the same amount of colors
+  amount <- 5
+  degree_colors <- c("#E1F5FE", "#B3E5FC", "#29B6F6", "#0288D1", "#01579B")
+
+  # calculate intervals
+  if(max(nodes$degree) < 5){
+    intervals <- cut(nodes$degree, breaks = seq(from = 0, to = max(nodes$degree), by = 1), dig.lab = 0, include.lowest = TRUE)
+  }else{
+    intervals <- cut(nodes$degree, breaks = seq(from = 0, to = max(nodes$degree), by = max(nodes$degree)/5), dig.lab = 0, include.lowest = TRUE)
+  }
+  
+  # map a color to each group
+  names(degree_colors) <- levels(intervals)
+  
+  # classify all nodes into groups with different colors
+  nodes$group <- intervals
+  nodes$color.background <- degree_colors[nodes$group]
+  nodes$color.highlight.background <- degree_colors[nodes$group]
+  nodes$color.hover.background <- degree_colors[nodes$group]
+  # all border colors remain unchanged
+  nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+  nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+  nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+       
+  all_degrees <- list("Nodes" = nodes, "Colors" = degree_colors, "Borders" = levels(intervals))
+  return(all_degrees)
+}
+
+get_default_colors_and_border <- function(nodelist){
+  nodes <- nodelist
+  
+  # initial colors
+  nodes$group <- c(rep("A", nrow(nodes)))
+  nodes$color.background <- c(rep("#f5f6f7", nrow(nodes)))
+  nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+  nodes$color.highlight.background <- c(rep("#f5f6f7", nrow(nodes)))
+  nodes$color.hover.background <- c(rep("#f5f6f7", nrow(nodes)))
+  nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+  nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+  
+  return(nodes)
 }
