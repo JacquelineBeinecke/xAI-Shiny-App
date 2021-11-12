@@ -207,9 +207,8 @@ get_degree_colors_and_border <- function(nodelist){
   if(max(nodes$degree) < 5){
     intervals <- cut(nodes$degree, breaks = seq(from = 0, to = max(nodes$degree), by = 1), dig.lab = 0, include.lowest = TRUE)
   }else{
-    intervals <- cut(nodes$degree, breaks = seq(from = 0, to = max(nodes$degree), by = max(nodes$degree)/5), dig.lab = 0, include.lowest = TRUE)
+    intervals <- cut(nodes$degree, breaks = round(seq(from = 0, to = max(nodes$degree), by = max(nodes$degree)/5),0), dig.lab = 0, include.lowest = TRUE)
   }
-  
   # map a color to each group
   names(degree_colors) <- levels(intervals)
   
@@ -222,7 +221,6 @@ get_degree_colors_and_border <- function(nodelist){
   nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
   nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
   nodes$color.hover.border <- c(rep("red", nrow(nodes)))
-       
   all_degrees <- list("Nodes" = nodes, "Colors" = degree_colors, "Borders" = levels(intervals))
   return(all_degrees)
 }

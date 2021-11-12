@@ -421,7 +421,7 @@ server <- function(input, output, session) {
   })
   
   # disable add/delete button, if no nodes/edges are in small_nodelist_for_table/small_edgelist
-  observeEvent(ignoreInit = T,c(input$modify_options, input$undo, input$radio, input$slider, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion),{
+  observeEvent(ignoreInit = T,c(input$modify_options, input$undo, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion),{
     # disable delete node button
     if(input$modify_options == "1"){
       if(nrow(small_nodelist_for_table) == 0){
@@ -476,7 +476,7 @@ server <- function(input, output, session) {
     input$slider,
     input$radio
     ), {
-    
+
     # create graph element
     output$graph <- renderVisNetwork({
       # read data on nodes and edges
@@ -512,6 +512,7 @@ server <- function(input, output, session) {
             nodesIdSelection = TRUE
             #selectedBy = "rel_pos" #with this the drop down menu lets you choose nodes based on their rel_pos value
           )
+        
       # if for some reason there are no edges
       } else {
         set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
@@ -526,6 +527,7 @@ server <- function(input, output, session) {
             nodesIdSelection = TRUE
             #selectedBy = "rel_pos" #with this the drop down menu lets you choose nodes based on their rel_pos value
           )
+        
       }
     })
   })
@@ -543,7 +545,7 @@ server <- function(input, output, session) {
     }, {
     #this makes sure that the smaller dataset gets calculated before the initialization of dropdowns
     calculate_smaller_node_and_edge_list()
-      
+     
     # get labels and lists
     node_labels <- small_nodelist_for_table$label
     edge_list <- small_edgelist
@@ -577,6 +579,7 @@ server <- function(input, output, session) {
     node_labels <- sort(node_labels)
     
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
+    
   })
   
   # Initialize second dropdown of modification options ----------------------------------
@@ -1675,11 +1678,9 @@ server <- function(input, output, session) {
   ######### Color nodes ############
   ##################################
   
-  
-  # calculate the different legends
-  output$legend <- renderPlot({
+  # calculate the different legends and color the nodes everytime one of these events takes place
+  calculate_legend_and_color_nodes <- eventReactive(c(input$slider, input$radio, input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo),{
     if(input$color_nodes == "one color (default)"){
-      print("hi (default color")
       colors_and_borders <- get_default_colors_and_border(small_nodelist_for_graph)
       # update graph
       visNetworkProxy("graph") %>%
@@ -1687,21 +1688,21 @@ server <- function(input, output, session) {
       
       # empty range
       output$range <- renderUI({
-         HTML("")
+        HTML("")
       })
     }
     if(input$color_nodes == "rel_pos"){
       # inform user that rel_pos only has values 0
       if(all(nodelist_table$rel_pos==0)){
-           output$error_only_zeros <- renderUI({
-             HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos' only contains 0. Upload data on nodes with values for 'rel_pos' to use this function! </span>")
-           })
-      # calculate and plot legend
+        output$error_only_zeros <- renderUI({
+          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos' only contains 0. Upload data on nodes with values for 'rel_pos' to use this function! </span>")
+        })
+        # calculate and plot legend
       }else{
         colors_and_borders <- get_rel_pos_colors_and_border(small_nodelist_for_graph)
         plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
         legend("top", legend = c(colors_and_borders[["Borders"]]), pch=21, pt.cex=2.5, cex=1.5, bty='n',
-                col = "#0a4ea3", ncol = 3, pt.bg =colors_and_borders[["Colors"]])
+               col = "#0a4ea3", ncol = 3, pt.bg =colors_and_borders[["Colors"]])
         
         output$range <- renderUI({
           HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(nodelist_table$rel_pos), 1), ")", " - ", "(", round(max(nodelist_table$rel_pos), 1), ")", "</p>"))
@@ -1709,7 +1710,7 @@ server <- function(input, output, session) {
         
         # update graph
         visNetworkProxy("graph") %>%
-           visUpdateNodes(nodes = colors_and_borders[["Nodes"]])
+          visUpdateNodes(nodes = colors_and_borders[["Nodes"]])
       }
     }
     if(input$color_nodes == "rel_pos_neg"){
@@ -1718,7 +1719,7 @@ server <- function(input, output, session) {
         output$error_only_zeros <- renderUI({
           HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos_neg' only contains 0. Upload data on nodes with values for 'rel_pos_neg' to use this function! </span>")
         })
-      # calculate and plot legend
+        # calculate and plot legend
       }else{
         colors_and_borders <- get_rel_pos_neg_colors_and_border(small_nodelist_for_graph)
         
@@ -1774,6 +1775,13 @@ server <- function(input, output, session) {
       }
     }
   })
+  
+  
+  # render the legend and update vis with color
+  output$legend <- renderPlot({
+    calculate_legend_and_color_nodes()
+  })
+  
   # this makes sure that there is no empty whitespace placeholder where the legend 
   # should be in case that "one color (default)" is selected
   output$uilegend <- renderUI({
@@ -1859,7 +1867,7 @@ server <- function(input, output, session) {
     output$edge_feature_overview <- renderDataTable({
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
-    
+   
     }
   )
   
