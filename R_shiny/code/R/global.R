@@ -137,7 +137,7 @@ get_rel_pos_colors_and_border <- function(nodelist){
   pos_colors <- c("#FAFAFA", "#E0E0E0", "#9E9E9E", "#616161", "#212121") #light to dark (left to right)
   
   # calculate intervals
-  intervals <- cut(nodes$rel_pos, breaks = 5)
+  intervals <- cut(nodes$rel_pos, breaks = round(seq(from = min(nodes$rel_pos), to = max(nodes$rel_pos), by = (max(nodes$rel_pos)-min(nodes$rel_pos))/5),5), include.lowest = TRUE)
   # map a color to each group
   names(pos_colors) <- levels(intervals)
   
@@ -168,9 +168,9 @@ get_rel_pos_neg_colors_and_border <- function(nodelist){
   nodes_negative <- nodes[which(nodes$rel_pos_neg <= 0), ]
   
   # calculate intervals
-  intervals_pos <- cut(nodes_positive$rel_pos_neg, breaks = 5)
-  intervals_neg <- cut(nodes_negative$rel_pos_neg, breaks = 5)
-
+  intervals_pos <- cut(nodes_positive$rel_pos_neg, breaks = round(seq(from = min(nodes_positive$rel_pos_neg), to = max(nodes_positive$rel_pos_neg), by = (max(nodes_positive$rel_pos_neg)-min(nodes_positive$rel_pos_neg))/5),5), include.lowest = TRUE)
+  intervals_neg <- cut(nodes_negative$rel_pos_neg, breaks = round(seq(from = min(nodes_negative$rel_pos_neg), to = max(nodes_negative$rel_pos_neg), by = -(min(nodes_negative$rel_pos_neg)-max(nodes_negative$rel_pos_neg))/5),5), include.lowest = TRUE)
+  
   # map a color to each group
   names(pos_colors) <- levels(intervals_pos)
   names(neg_colors) <- levels(intervals_neg)

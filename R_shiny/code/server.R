@@ -1679,7 +1679,7 @@ server <- function(input, output, session) {
   ##################################
   
   # calculate the different legends and color the nodes everytime one of these events takes place
-  calculate_legend_and_color_nodes <- eventReactive(c(input$slider, input$radio, input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo),{
+  calculate_legend_and_color_nodes <- eventReactive(c(input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo),{
     if(input$color_nodes == "one color (default)"){
       colors_and_borders <- get_default_colors_and_border(small_nodelist_for_graph)
       # update graph
@@ -1790,6 +1790,25 @@ server <- function(input, output, session) {
     }
   })
   
+  ###################################################################
+  ######### Reset Coloring when Slider or Radio is changed ##########
+  ###################################################################
+  
+  observeEvent(c( 
+    # the events that trigger this
+    input$slider,
+    input$radio
+  ), {
+    updateSelectInput(session, "color_nodes",
+                      choices = list(
+                        "one color (default)",
+                        "rel_pos",
+                        "rel_pos_neg",
+                        "degree"),
+                      selected = "one color (default)"
+    )
+  })
+  
   ############################################
   ######## Data Table Nodes and Edges ########
   ############################################
@@ -1801,9 +1820,20 @@ server <- function(input, output, session) {
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     ### create sub node table ###
-   
+    print(input$radio)
     # sort nodelist by XAI values (method is selected by radiobutton)
-    nodelist_for_table <- nodelist[order(nodelist[[input$radio]], decreasing = TRUE),]
+    if(input$radio == "rel_pos_highlow"){
+      nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = TRUE),]
+    }
+    if(input$radio == "rel_pos_lowhigh"){
+      nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = FALSE),]
+    }
+    if(input$radio == "rel_pos_neg_highlow"){
+      nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = TRUE),]
+    }
+    if(input$radio == "rel_pos_neg_lowhigh"){
+      nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = FALSE),]
+    }
     # only show the amount of nodes selected by the sliding bar
     nodelist_for_table <- nodelist_for_table[1:input$slider,] 
     

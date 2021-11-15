@@ -174,8 +174,11 @@ ui <- fluidPage(
                       fluidRow(
                         column(4, 
                                radioButtons("radio", label = h3("Select relevance values to sort nodes by"),
-                                            choices = list("rel_pos" = "rel_pos", "rel_pos_neg" = "rel_pos_neg"), 
-                                            selected = "rel_pos"),
+                                            choices = list("rel_pos (high to low)" = "rel_pos_highlow",
+                                                           "rel_pos (low to high)" = "rel_pos_lowhigh",
+                                                           "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
+                                                           "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
+                                            selected = "rel_pos_highlow"),
                         ),
                         column(8, 
                                #default nodes to display is 3 (value = 3)
