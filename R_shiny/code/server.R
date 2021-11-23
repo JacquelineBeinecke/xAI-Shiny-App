@@ -11,7 +11,7 @@ server <- function(input, output, session) {
   small_nodelist_for_table <- data.frame()
   small_edgelist <- data.frame()
   
-  # this contains more than the selected nodes, because we also need to visualize the neighbouring nodes
+  # this contains more than the selected nodes, because we also need to visualize the neighboring nodes
   small_nodelist_for_graph <- data.frame()
   
   # empty data tables that will be used to save user modification actions and thus allow the undo function
@@ -389,6 +389,95 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "edgelist_uploaded", suspendWhenHidden = FALSE)
   
+  #########################################
+  ######## upload pytorch dataset #########
+  #########################################
+  
+  observeEvent(input$upload_dataset, {
+      # throw error if status returns something else than 200 (so if it didnt work)
+      r <- GET(paste(api_path, "/first_graph",sep=""), query = list(dataset_name = input$choose_a_dataset))
+      stop_for_status(r)
+      graph <- content(r, type = "text")
+      
+      ####### because i don't have a dataset right now just use the old data
+      
+      # get nodelist
+      nodelist <- read.csv("D:\\Uni\\Doktor-Goettingen\\GitHub\\xAI-Shiny-App\\R_shiny\\data\\dataset_1\\nodelist.csv") #data <- content(GET(paste(api_path, "/data/dataset",sep=""), type = "basic"), "text")
+      
+      # order data frame by node label from A-Z
+      nodelist <- nodelist[order(nodelist$label), ]
+      
+      # initialize global variables for API / download
+      nodelist_table <<- nodelist
+      
+      # initialize global variables for node addition
+      # vector, containing all names of node features, including rel_pos and rel_pos_neg
+      node_features_list <<- nodelist_table[, c(3:ncol(nodelist_table))]
+      # all columns of nodelist but with only one row that is initialized with placeholder and zeros for relevances / attributes of a new node
+      temporary_added_node_feature <<- nodelist_table[0, ]
+      temporary_added_node_feature[nrow(temporary_added_node_feature) + 1, ] <<- c("label_value", "id_value", rep(0, length(colnames(nodelist_table)) - 2))
+      temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)] <<- as.numeric(temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)])
+      
+      # update max Slider value to amount of nodes
+      max = length(nodelist_table[[1]])
+      updateSliderInput(session, "slider", max=max)
+      
+      # get edgelist 
+      edgelist <- read.csv("D:\\Uni\\Doktor-Goettingen\\GitHub\\xAI-Shiny-App\\R_shiny\\data\\dataset_1\\edgelist.csv")#data <- content(GET(paste(api_path, "/data/dataset",sep=""), type = "basic"), "text")
+      
+      # order data frame from A-Z
+      edgelist <- edgelist[order(edgelist$from), ]
+      
+      # initialize global variables for API / download
+      edgelist_table <<- edgelist
+      
+      # initialize global variables for edge addition
+      # vector, containing all names of edge features, including rel_pos and rel_pos_neg
+      edge_features_list <<- subset(edgelist_table, select = -c(1:3))
+      # all columns of edgelist but with only one row that is initialized with placeholder and zeros for adding an edge
+      temporary_added_edge_feature <<- edgelist_table[0, ]
+      temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
+      temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
+      
+      # in case the user uploads new data after some modifications have already been made, global variables for modification actions need to be empty again
+      modification_history <<- data.frame(action = c(0), element = c(0))
+      all_deleted_nodes <<- data.frame()
+      all_deleted_nodes_edges <<- list()
+      all_deleted_edges <<- data.frame()
+      all_added_edges <<- data.frame()
+      all_added_nodes <<- data.frame()
+      
+      # clear any printed error messages on the UI
+      output$info_change <- renderUI({
+        HTML(" ")
+      })
+      
+      output$error_only_zeros <- renderUI({
+        HTML(" ")
+      })
+      
+      output$error_add_node <- renderUI({
+        HTML(" ")
+      })
+      
+      output$error_add_edge <- renderUI({
+        HTML(" ")
+      })
+      
+      # empty all text input fields of edge and node addition
+      updateNumericInput(session, "edgefeature_value", value = 0)
+      updateTextInput(session, "new_node_label", value = "", placeholder = "e.g. ABCC2")
+      updateNumericInput(session, "nodefeature_value", value = 0)
+      
+      # reset the select Input of color nodes by
+      updateSelectInput(session, "color_nodes", selected = "one color (default)")
+      
+      # enable third tab
+      shinyjs::js$enableTab("Interact")
+      
+      calculate_smaller_node_and_edge_list()
+  })
+  
   
   ##################################
   ######## dis/enable tabs #########
@@ -399,25 +488,6 @@ server <- function(input, output, session) {
     if (is.null(input$upload_nodes)) {
       shinyjs::js$disableTab("Interact")
     }
-  })
-  
-  # disable predict button and provide information on the reason for that ----------------------------------
-  predict_not_available <- eventReactive(input$predict, {
-    input$upload_nodes
-  })
-  shinyjs::disable("predict")
-  output$message_no_predict <- renderText({
-    predict_not_available()
-  })
-  
-  
-  # disable retrain button and provide information on the reason for that ----------------------------------
-  retrain_not_available <- eventReactive(input$retrain, {
-    input$upload_nodes
-  })
-  shinyjs::disable("retrain")
-  output$message_no_retrain <- renderText({
-    retrain_not_available()
   })
   
   # disable add/delete button, if no nodes/edges are in small_nodelist_for_table/small_edgelist
@@ -464,6 +534,32 @@ server <- function(input, output, session) {
     }
   })
   
+  ############################
+  ######### Retrain ##########
+  ############################
+  
+  observeEvent(input$retrain, {
+    # post modification history to API
+    post_modification_history(modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges)
+    # get retrained graph values
+    r <- GET(paste(api_path, "/nn_retrain",sep=""))
+    stop_for_status(r)
+    graph <- content(r, type = "text")
+  })
+  
+  ############################
+  ######### Predict ##########
+  ############################
+  
+  observeEvent(input$predict, {
+    # post modification history to API
+    post_modification_history(modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges)
+    # get retrained graph values
+    r <- GET(paste(api_path, "/nn_predict",sep=""))
+    stop_for_status(r)
+    graph <- content(r, type = "text")
+  })
+  
   ##################################
   ######### Network Graph ##########
   ##################################
@@ -476,7 +572,7 @@ server <- function(input, output, session) {
     input$slider,
     input$radio
     ), {
-
+    
     # create graph element
     output$graph <- renderVisNetwork({
       # read data on nodes and edges
@@ -540,6 +636,7 @@ server <- function(input, output, session) {
   # Initialize first dropdown of modification options ----------------------------------
   observeEvent(ignoreInit = T,{
     input$upload_edges
+    input$upload_dataset
     input$radio
     input$slider
     }, {
@@ -585,6 +682,7 @@ server <- function(input, output, session) {
   # Initialize second dropdown of modification options ----------------------------------
   observeEvent(ignoreInit = T,{ # the events that trigger this
     input$upload_edges 
+    input$upload_dataset
     input$choose_first_connected_node_delete 
     input$choose_first_connected_node_add
     }, {
@@ -635,7 +733,10 @@ server <- function(input, output, session) {
   
   
   # initialize dropdown of node attributes for node addition ----------------------------------
-  observeEvent(input$upload_edges, {
+  observeEvent({
+    input$upload_edges
+    input$upload_dataset
+    }, {
     node_features <- node_features_list
     feature_names <- colnames(node_features)
     updateSelectizeInput(session, "choose_node_feature", choices = feature_names, server = TRUE)
@@ -643,7 +744,10 @@ server <- function(input, output, session) {
   
   
   # initialize dropdown of edge attributes for edge addition ----------------------------------
-  observeEvent(input$upload_edges, {
+  observeEvent({
+    input$upload_edges
+    input$upload_dataset
+  }, {
     edge_features <- edge_features_list
     feature_names <- colnames(edge_features)
     updateSelectizeInput(session, "choose_edge_feature", choices = feature_names, server = TRUE)
@@ -1680,6 +1784,7 @@ server <- function(input, output, session) {
   
   # calculate the different legends and color the nodes everytime one of these events takes place
   calculate_legend_and_color_nodes <- eventReactive(c(input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo),{
+    ## "one color (default)"
     if(input$color_nodes == "one color (default)"){
       colors_and_borders <- get_default_colors_and_border(small_nodelist_for_graph)
       # update graph
@@ -1691,6 +1796,7 @@ server <- function(input, output, session) {
         HTML("")
       })
     }
+    ## "rel_pos"
     if(input$color_nodes == "rel_pos"){
       # inform user that rel_pos only has values 0
       if(all(nodelist_table$rel_pos==0)){
@@ -1713,6 +1819,7 @@ server <- function(input, output, session) {
           visUpdateNodes(nodes = colors_and_borders[["Nodes"]])
       }
     }
+    ## "rel_pos_neg"
     if(input$color_nodes == "rel_pos_neg"){
       # inform user that rel_pos_neg only has values 0
       if(all(nodelist_table$rel_pos_neg==0)){
@@ -1736,6 +1843,7 @@ server <- function(input, output, session) {
           visUpdateNodes(nodes = colors_and_borders[["Nodes"]])
       }
     }
+    ## "degree"
     if(input$color_nodes == "degree"){
       # calculate degrees for visualized nodes
       degree <- c() # initialze "degree" vector
@@ -1820,7 +1928,7 @@ server <- function(input, output, session) {
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     ### create sub node table ###
-    print(input$radio)
+    
     # sort nodelist by XAI values (method is selected by radiobutton)
     if(input$radio == "rel_pos_highlow"){
       nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = TRUE),]
@@ -1897,7 +2005,6 @@ server <- function(input, output, session) {
     output$edge_feature_overview <- renderDataTable({
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
-   
     }
   )
   

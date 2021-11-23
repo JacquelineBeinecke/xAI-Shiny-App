@@ -239,3 +239,65 @@ get_default_colors_and_border <- function(nodelist){
   
   return(nodes)
 }
+
+##########################################
+########  functions for api   ############
+##########################################
+
+post_modification_history <- function(modification_history,all_deleted_nodes,all_added_nodes,all_deleted_edges,all_added_edges){
+  # get amounts of rows in dataframes with saved ids
+  counter_deleted_nodes <- nrow(all_deleted_nodes)
+  counter_added_nodes <- nrow(all_added_nodes)
+  counter_deleted_edges <- nrow(all_deleted_edges)
+  counter_added_edges <-nrow(all_added_edges)
+  
+  # first row is initialized with 0, so we need at least 2 rows
+  if(nrow(modification_history) > 1){
+    
+    # iterate over all modifications
+    for(i in rev(2:nrow(modification_history))){
+      action <- modification_history[i,1]
+      element <- modification_history[i,2]
+      # get id of deleted node
+      if(action == "deleted" & element == "node"){
+        id <- all_deleted_nodes[["id"]][counter_deleted_nodes]
+        counter_deleted_nodes = counter_deleted_nodes - 1
+        
+        body <- list(action=action, element=element, id=id)
+      }
+      # get id of deleted edge
+      if(action == "deleted" & element == "edge"){
+        id <- all_deleted_edges[["id"]][counter_deleted_edges]
+        counter_deleted_edges = counter_deleted_edges - 1
+        
+        body <- list(action=action, element=element, id=id)
+      }
+      # get id label and values of added node
+      if(action == "added" & element == "node"){
+        node <- all_added_nodes[counter_added_nodes,]
+        counter_added_nodes = counter_added_nodes - 1
+        
+        body <- list(action=action, element=element, node=node)
+      }
+      # get id, label and values of added edge
+      if(action == "added" & element == "edge"){
+        edge <- all_added_edges[counter_added_edges,]
+        counter_added_edges = counter_added_edges - 1
+        
+        body <- list(action=action, element=element, edge=edge)
+      }
+      
+      # post to api
+      r <- POST(paste(api_path, "/modification_history",sep=""), body = body, encode = "json")
+      # throw error if status returns something else than 200 (so if it didnt work)
+      stop_for_status(r)
+    }
+  # if there are no modifications send empty modification list
+  }else{
+    body <- list(action="empty", element="empty")
+    # post to api
+    r <- POST(paste(api_path, "/modification_history",sep=""), body = body, encode = "json")
+    # throw error if status returns something else than 200 (so if it didnt work)
+    stop_for_status(r)
+  }
+}
