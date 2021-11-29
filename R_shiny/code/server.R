@@ -389,13 +389,13 @@ server <- function(input, output, session) {
   })
   outputOptions(output, "edgelist_uploaded", suspendWhenHidden = FALSE)
   
-  #########################################
-  ######## upload pytorch dataset #########
-  #########################################
+  #######################################
+  ######## upload whole dataset #########
+  #######################################
   
   observeEvent(input$upload_dataset, {
       # throw error if status returns something else than 200 (so if it didnt work)
-      r <- GET(paste(api_path, "/first_graph",sep=""), query = list(dataset_name = input$choose_a_dataset))
+      r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset))
       stop_for_status(r)
       graph <- content(r, type = "text")
       
@@ -540,7 +540,14 @@ server <- function(input, output, session) {
   
   observeEvent(input$retrain, {
     # post modification history to API
-    post_modification_history(modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges)
+    post_modifications(modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
+    # at the end delete all modifications
+    modification_history <<- data.frame(action = c(0), element = c(0))
+    all_deleted_nodes <<- data.frame()
+    all_deleted_nodes_edges <<- list()
+    all_deleted_edges <<- data.frame()
+    all_added_edges <<- data.frame()
+    all_added_nodes <<- data.frame()
     # get retrained graph values
     r <- GET(paste(api_path, "/nn_retrain",sep=""))
     stop_for_status(r)
@@ -553,7 +560,14 @@ server <- function(input, output, session) {
   
   observeEvent(input$predict, {
     # post modification history to API
-    post_modification_history(modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges)
+    post_modifications(modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
+    # at the end delete all modifications
+    modification_history <<- data.frame(action = c(0), element = c(0))
+    all_deleted_nodes <<- data.frame()
+    all_deleted_nodes_edges <<- list()
+    all_deleted_edges <<- data.frame()
+    all_added_edges <<- data.frame()
+    all_added_nodes <<- data.frame()
     # get retrained graph values
     r <- GET(paste(api_path, "/nn_predict",sep=""))
     stop_for_status(r)
@@ -1402,7 +1416,7 @@ server <- function(input, output, session) {
   ##################################
   
   # disable undo-button when modification_history is empty, enable undo-button when there are actions to reverse ----------------------------------
-  observeEvent(c(input$undo, input$upload_edges, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion), {
+  observeEvent(c(input$undo, input$upload_edges, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$predict, input$retrain), {
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
     } else {
@@ -1432,7 +1446,6 @@ server <- function(input, output, session) {
   
   # function to reverse the last node deletion ----------------------------------
   undo_node_deletion <- function() {
-    
     # extract node from list of all deleted nodes and also its edges
     add_node <- all_deleted_nodes[nrow(all_deleted_nodes), ]
     add_edges <- all_deleted_nodes_edges[[length(all_deleted_nodes_edges)]]

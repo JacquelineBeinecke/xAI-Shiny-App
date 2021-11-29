@@ -146,7 +146,7 @@ ui <- fluidPage(
                                         
                                         # table representing the required data structure. it disappears after the upload was successful
                                         conditionalPanel(
-                                          condition = "!(output.nodelist_uploaded)",
+                                          condition = "!(output.nodelist_uploaded) && !(input.radio_input_type == 'pytorch_data')",
                                           tags$h3("The following Structure is mandatory:"),
                                           tags$p("Hint 1: Network visualizations with more than 200 nodes might get cluttered.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
                                           tags$p("Hint 2: If you don't have values for 'rel_pos' or 'rel_pos_neg', just enter a column with zeros.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
@@ -169,7 +169,7 @@ ui <- fluidPage(
                                                        )
                                       ),
                                       # table representing the required data structure. it disappears after the upload was successful
-                                      conditionalPanel(condition = c("output.nodelist_uploaded && !(output.edgelist_uploaded) " ),
+                                      conditionalPanel(condition = c("output.nodelist_uploaded && !(output.edgelist_uploaded) && !(input.radio_input_type == 'pytorch_data')" ),
                                                        tags$h3("The following Structure is mandatory:"),
                                                        tags$p("Hint 1: If you don't have values for 'rel_pos' or 'rel_pos_neg', just enter a column with zeros.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
                                                        tableOutput("required_structure_edgelist"),
