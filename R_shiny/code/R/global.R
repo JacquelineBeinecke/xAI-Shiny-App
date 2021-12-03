@@ -105,7 +105,7 @@ update_node_tooltip <- function(nodelist, edgelist){
 ## function to calculate edge_tooltip
 update_edge_tooltip <- function(nodelist, edgelist){
   # tooltip for edges: translate node ids into label names, create html String containing tooltip information: "from-to", rel_pos, rel_pos_neg, then create additional column "title" in edges
-  edges_tooltip <- edgelist[, c(1, 2, 4, 5)]
+  edges_tooltip <- edgelist[, which(colnames(edgelist) %in% c("from","to","rel_pos","rel_pos_neg"))]
   string <- c()
   
   # replace ids with labels for showing in the table
@@ -115,13 +115,16 @@ update_edge_tooltip <- function(nodelist, edgelist){
   }
   
   edges_tooltip$from_to <- paste0(as.character(edges_tooltip[1:nrow(edges_tooltip), 1]), " - ", as.character(edges_tooltip[1:nrow(edges_tooltip), 2]))
-  edges_tooltip <- edges_tooltip[, c(5, 3, 4)]
   
+  from_to_col_nr <- which(colnames(edges_tooltip) == "from_to")
+  rel_pos_nr <- which(colnames(edges_tooltip) == "rel_pos")
+  rel_pos_neg_nr <- which(colnames(edges_tooltip) == "rel_pos_neg")
+  
+  edges_tooltip <- edges_tooltip[, c(from_to_col_nr, rel_pos_nr, rel_pos_neg_nr), drop = FALSE]
   
   for(index in 1:ncol(edges_tooltip)){
     string <- paste0(string, "<p><b>", colnames(edges_tooltip)[index], ": ", "</b>", as.character(edges_tooltip[1:nrow(edges_tooltip), index]), "</p>")
   }
-  
   return(string)
 }
 

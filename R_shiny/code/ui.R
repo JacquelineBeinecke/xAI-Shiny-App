@@ -113,7 +113,7 @@ ui <- fluidPage(
                                        ),
                                        div(
                                          tags$h3("Re-train or Predict"),
-                                         tags$p("Download the modified graph data and use it for re-training or predictions on your GNN. Re-upload the modified graph together with newly computed relevances.")
+                                         tags$p("Use the modified graph data for re-training or predictions on your GNN.")
                                        )
                                    )
                                )
@@ -149,7 +149,7 @@ ui <- fluidPage(
                                           condition = "!(output.nodelist_uploaded) && !(input.radio_input_type == 'pytorch_data')",
                                           tags$h3("The following Structure is mandatory:"),
                                           tags$p("Hint 1: Network visualizations with more than 200 nodes might get cluttered.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
-                                          tags$p("Hint 2: If you don't have values for 'rel_pos' or 'rel_pos_neg', just enter a column with zeros.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
+                                          tags$p("Hint 2: If you don't have values for 'rel_pos', just enter a column with zeros.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
                                           tableOutput("required_structure_nodelist")
                                         ),
                                         # preview of the uploaded data on nodes
@@ -171,7 +171,7 @@ ui <- fluidPage(
                                       # table representing the required data structure. it disappears after the upload was successful
                                       conditionalPanel(condition = c("output.nodelist_uploaded && !(output.edgelist_uploaded) && !(input.radio_input_type == 'pytorch_data')" ),
                                                        tags$h3("The following Structure is mandatory:"),
-                                                       tags$p("Hint 1: If you don't have values for 'rel_pos' or 'rel_pos_neg', just enter a column with zeros.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
+                                                       tags$p("Hint 1: If you have values for 'rel_pos' or 'rel_pos_neg', just enter a column with name 'rel_pos' or 'rel_pos_neg'.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
                                                        tableOutput("required_structure_edgelist"),
                                       ),
                                       # preview of the uploaded data on edges
@@ -197,13 +197,13 @@ ui <- fluidPage(
              # create tab on top to select amount of nodes to be shown
              tabPanel("Interact",
                       fluidRow(
-                        column(4, 
+                        column(4,
                                radioButtons("radio", label = h3("Select relevance values to sort nodes by"),
                                             choices = list("rel_pos (high to low)" = "rel_pos_highlow",
                                                            "rel_pos (low to high)" = "rel_pos_lowhigh",
                                                            "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
                                                            "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
-                                            selected = "rel_pos_highlow"),
+                                            selected = "rel_pos_highlow")
                         ),
                         column(8, 
                                #default nodes to display is 3 (value = 3)

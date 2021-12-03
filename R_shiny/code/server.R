@@ -39,7 +39,7 @@ server <- function(input, output, session) {
   
   
   # information on required structure for the nodelist ----------------------------------
-  info_table_nodes <- data.frame(labels = c("Unique name for each node"), id = c("id of the node"), rel_pos = c("xAI method computing only positive relevance values"), rel_pos_neg = c("xAI method computing positive and negative relevance values"), Optional... = c("Additional columns with node attributes (numeric)"))
+  info_table_nodes <- data.frame('labels' = c("Unique name for each node"), 'id' = c("id of the node"), 'rel_pos' = c("xAI method computing only positive relevance values"), 'Optional: rel_pos_neg' = c("xAI method computing positive and negative relevance values"), 'Optional...' = c("Additional columns with node attributes (numeric)"))
   output$required_structure_nodelist <- renderTable({
     info_table_nodes
   })
@@ -52,9 +52,9 @@ server <- function(input, output, session) {
     nodelist <- read.csv(input$upload_nodes$datapath)
     
     # check 1: containing required columns
-    if (!("label" %in% colnames(nodelist)) || !("id" %in% colnames(nodelist)) || !("rel_pos" %in% colnames(nodelist)) || !("rel_pos_neg" %in% colnames(nodelist))) {
+    if (!("label" %in% colnames(nodelist)) || !("id" %in% colnames(nodelist)) || !("rel_pos" %in% colnames(nodelist))) {
       output$error_upload_nodes <- renderUI({
-        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Required column(s) missing. Make sure that your data contains columns named 'label', 'id', 'rel_pos' and 'rel_pos_neg'! </span>")
+        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Required column(s) missing. Make sure that your data contains columns named 'label', 'id', 'rel_pos'! </span>")
       })
       
       # disable third tab
@@ -64,10 +64,18 @@ server <- function(input, output, session) {
     } else {
       
       # check 2: bring columns in the correct order, drop = FALSE ensures that if only one column remains, the data frame is still a data frame
-      remove_columns <- c("label", "id", "rel_pos", "rel_pos_neg")
-      nodelist_only_features <- nodelist[, !names(nodelist) %in% remove_columns, drop = FALSE]
-      target_column_order <- c("label", "id", "rel_pos", "rel_pos_neg", colnames(nodelist_only_features))
-      nodelist <- nodelist[, target_column_order]
+      if("rel_pos_neg" %in% colnames(nodelist)){
+        remove_columns <- c("label", "id", "rel_pos", "rel_pos_neg")
+        nodelist_only_features <- nodelist[, !names(nodelist) %in% remove_columns, drop = FALSE]
+        target_column_order <- c("label", "id", "rel_pos", "rel_pos_neg", colnames(nodelist_only_features))
+        nodelist <- nodelist[, target_column_order]
+      }else{
+        remove_columns <- c("label", "id", "rel_pos")
+        nodelist_only_features <- nodelist[, !names(nodelist) %in% remove_columns, drop = FALSE]
+        target_column_order <- c("label", "id", "rel_pos", colnames(nodelist_only_features))
+        nodelist <- nodelist[, target_column_order]
+      }
+      
       
       # check 3a: unique label
       if (length(unique(nodelist$label)) != nrow(nodelist)) {
@@ -94,7 +102,7 @@ server <- function(input, output, session) {
         } else {
           
           # check 4: all node attributes require numeric values
-          if (!is.numeric(unlist(nodelist[, 5:ncol(nodelist)], use.names = FALSE))) {
+          if (!is.numeric(unlist(nodelist[, !names(nodelist) %in% remove_columns], use.names = FALSE))) {
             output$error_upload_nodes <- renderUI({
               HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Wrong data format of the feature values. Make sure that column(s) of node attributes only contain numeric values! </span>")
             })
@@ -189,7 +197,7 @@ server <- function(input, output, session) {
   ##################################
   
   # information on required structure for the edgelist ----------------------------------
-  info_table_edges <- data.frame(from = c("id of the node"), to = c("id of the connected node"), id = c("id of the edge"), rel_pos = c("xAI method computing only positive relevance values"), rel_pos_neg = c("xAI method computing positive and negative relevance values"), Optional... = c("Additional columns with edge attributes (numeric)"))
+  info_table_edges <- data.frame('from' = c("id of the node"), 'to' = c("id of the connected node"), 'id' = c("id of the edge"), 'Optional: rel_pos' = c("xAI method computing only positive relevance values"), 'Optional: rel_pos_neg' = c("xAI method computing positive and negative relevance values"), 'Optional...' = c("Additional columns with edge attributes (numeric)"))
   output$required_structure_edgelist <- renderTable({
     info_table_edges
   })
@@ -211,9 +219,9 @@ server <- function(input, output, session) {
     edgelist <- read.csv(input$upload_edges$datapath)
     
     # check 1: containing required columns
-    if (!("from" %in% colnames(edgelist)) || !("to" %in% colnames(edgelist)) || !("id" %in% colnames(edgelist)) || !("rel_pos" %in% colnames(edgelist)) || !("rel_pos_neg" %in% colnames(edgelist))) {
+    if (!("from" %in% colnames(edgelist)) || !("to" %in% colnames(edgelist)) || !("id" %in% colnames(edgelist))) {
       output$error_upload_edges <- renderUI({
-        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Required column(s) missing. Make sure that your data contains columns named 'from', 'to', 'id', 'rel_pos' and 'rel_pos_neg'. </span>")
+        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Required column(s) missing. Make sure that your data contains columns named 'from', 'to', 'id'. </span>")
       })
       
       # disable third tab
@@ -223,11 +231,11 @@ server <- function(input, output, session) {
     } else {
       
       # check 2: bring columns in the correct order, drop = FALSE ensures that if only one column remains, the data frame is still a data frame
-      remove_columns <- c("from", "to", "id", "rel_pos", "rel_pos_neg")
+      remove_columns <- c("from", "to", "id", colnames(edgelist)[which(colnames(edgelist) %in% c("rel_pos", "rel_pos_neg"))])
       edgelist_only_features <- edgelist[, !names(edgelist) %in% remove_columns, drop = FALSE]
-      target_column_order <- c("from", "to", "id", "rel_pos", "rel_pos_neg", colnames(edgelist_only_features))
+      target_column_order <- c(remove_columns, colnames(edgelist_only_features))
       edgelist <- edgelist[, target_column_order]
-      
+    
       # check 3: unique id
       if (length(unique(edgelist$id)) != nrow(edgelist)) {
         output$error_upload_edges <- renderUI({
@@ -241,28 +249,29 @@ server <- function(input, output, session) {
       } else {
         
         # check 4: all edge attributes require numeric values
-        if (!is.numeric(unlist(edgelist[, 6:ncol(edgelist)], use.names = FALSE))) {
+        if (!is.numeric(unlist(edgelist[, (length(remove_columns)+1):ncol(edgelist)], use.names = FALSE))) {
           output$error_upload_edges <- renderUI({
             HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Wrong data format of the feature values. Make sure that column(s) of edge attributes only contain numeric values! </span>")
           })
-          
           # disable third tab
           shinyjs::js$disableTab("Interact")
-          
+
           return(NULL)
         } else {
           
           # check 5: rel_pos should only contain values >= 0
-          for (index in 1:nrow(edgelist)) {
-            if (edgelist$rel_pos[index] < 0) {
-              output$error_upload_edges <- renderUI({
-                HTML("<span style='color:red; font-size:14px'> <br/> ERROR: In the column 'rel_pos' are negative values. Make sure that it only contains values greater than or equal to zero! </span>")
-              })
-              
-              # disable third tab
-              shinyjs::js$disableTab("Interact")
-              
-              return(NULL)
+          if("rel_pos" %in% colnames(edgelist)){
+            for (index in 1:nrow(edgelist)) {
+              if (edgelist$rel_pos[index] < 0) {
+                output$error_upload_edges <- renderUI({
+                  HTML("<span style='color:red; font-size:14px'> <br/> ERROR: In the column 'rel_pos' are negative values. Make sure that it only contains values greater than or equal to zero! </span>")
+                })
+                
+                # disable third tab
+                shinyjs::js$disableTab("Interact")
+                
+                return(NULL)
+              }
             }
           }
           
@@ -402,7 +411,7 @@ server <- function(input, output, session) {
       ####### because i don't have a dataset right now just use the old data
       
       # get nodelist
-      nodelist <- read.csv("D:\\Uni\\Doktor-Goettingen\\GitHub\\xAI-Shiny-App\\R_shiny\\data\\dataset_1\\nodelist.csv") #data <- content(GET(paste(api_path, "/data/dataset",sep=""), type = "basic"), "text")
+      nodelist <- read.csv("D:\\Uni\\Doktor-Goettingen\\GitLab\\xai-shiny-app\\R_shiny\\data\\dataset_3\\nodelist2.csv") #data <- content(GET(paste(api_path, "/data/dataset",sep=""), type = "basic"), "text")
       
       # order data frame by node label from A-Z
       nodelist <- nodelist[order(nodelist$label), ]
@@ -423,7 +432,7 @@ server <- function(input, output, session) {
       updateSliderInput(session, "slider", max=max)
       
       # get edgelist 
-      edgelist <- read.csv("D:\\Uni\\Doktor-Goettingen\\GitHub\\xAI-Shiny-App\\R_shiny\\data\\dataset_1\\edgelist.csv")#data <- content(GET(paste(api_path, "/data/dataset",sep=""), type = "basic"), "text")
+      edgelist <- read.csv("D:\\Uni\\Doktor-Goettingen\\GitLab\\xai-shiny-app\\R_shiny\\data\\dataset_3\\edgelist2.csv")#data <- content(GET(paste(api_path, "/data/dataset",sep=""), type = "basic"), "text")
       
       # order data frame from A-Z
       edgelist <- edgelist[order(edgelist$from), ]
@@ -479,9 +488,9 @@ server <- function(input, output, session) {
   })
   
   
-  ##################################
-  ######## dis/enable tabs #########
-  ##################################
+  ###################################################
+  ######## dis/enable/update tabs/functions #########
+  ###################################################
   
   # initially disable Interact tab by start of the shiny App ----------------------------------
   observe({
@@ -532,6 +541,23 @@ server <- function(input, output, session) {
         shinyjs::enable("confirm_edge_addition")
       }
     }
+  })
+  
+  # update radio buttons based on if rel_pos_neg is present
+  observeEvent(c(input$upload_nodes, input$upload_dataset),{
+    if(!("rel_pos_neg" %in% colnames(nodelist_table))){
+      updateRadioButtons(session, "radio",
+                         choices = list("rel_pos (high to low)" = "rel_pos_highlow",
+                                        "rel_pos (low to high)" = "rel_pos_lowhigh"), 
+                         selected = "rel_pos_highlow")
+     }else{
+       updateRadioButtons(session, "radio",
+                          choices = list("rel_pos (high to low)" = "rel_pos_highlow",
+                                         "rel_pos (low to high)" = "rel_pos_lowhigh",
+                                         "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
+                                         "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
+                          selected = "rel_pos_highlow")
+     }
   })
   
   ############################
@@ -595,11 +621,11 @@ server <- function(input, output, session) {
       
       nodes <- small_nodelist_for_graph
       edges <- small_edgelist
-    
+      
       nodes$title <- update_node_tooltip(nodes, complete_edgelist)
       
       # plot the graph if edges are given (or left after edge deletions)
-      if(length(rownames(edges)) != 0){
+      if(nrow(edges) != 0){
         # update edge tooltip title (only if edges are given)
         edges$title <- update_edge_tooltip(complete_nodelist, edges)
         
