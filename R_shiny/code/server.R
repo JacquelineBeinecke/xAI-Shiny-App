@@ -30,6 +30,9 @@ server <- function(input, output, session) {
   edge_features_list <- data.frame()
   temporary_added_edge_feature <- data.frame()
   
+  # global variable that monitors if sorting data py rel_pos/rel_pos_neg is enabled or not (is disabled when no relevance values are given)
+  sorting <<- 1
+  
   ##################################
   ######### upload nodes ###########
   ##################################
@@ -39,7 +42,7 @@ server <- function(input, output, session) {
   
   
   # information on required structure for the nodelist ----------------------------------
-  info_table_nodes <- data.frame('labels' = c("Unique name for each node"), 'id' = c("id of the node"), 'rel_pos' = c("xAI method computing only positive relevance values"), 'Optional: rel_pos_neg' = c("xAI method computing positive and negative relevance values"), 'Optional...' = c("Additional columns with node attributes (numeric)"))
+  info_table_nodes <- data.frame('labels' = c("Unique name for each node"), 'id' = c("id of the node"), 'Optional: rel_pos' = c("xAI method computing only positive relevance values"), 'Optional: rel_pos_neg' = c("xAI method computing positive and negative relevance values"), 'Optional...' = c("Additional columns with node attributes (numeric)"))
   output$required_structure_nodelist <- renderTable({
     info_table_nodes
   })
@@ -52,9 +55,9 @@ server <- function(input, output, session) {
     nodelist <- read.csv(input$upload_nodes$datapath)
     
     # check 1: containing required columns
-    if (!("label" %in% colnames(nodelist)) || !("id" %in% colnames(nodelist)) || !("rel_pos" %in% colnames(nodelist))) {
+    if (!("label" %in% colnames(nodelist)) || !("id" %in% colnames(nodelist))) {
       output$error_upload_nodes <- renderUI({
-        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Required column(s) missing. Make sure that your data contains columns named 'label', 'id', 'rel_pos'! </span>")
+        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Required column(s) missing. Make sure that your data contains columns named 'label', 'id'! </span>")
       })
       
       # disable third tab
@@ -64,17 +67,11 @@ server <- function(input, output, session) {
     } else {
       
       # check 2: bring columns in the correct order, drop = FALSE ensures that if only one column remains, the data frame is still a data frame
-      if("rel_pos_neg" %in% colnames(nodelist)){
-        remove_columns <- c("label", "id", "rel_pos", "rel_pos_neg")
+        remove_columns <- c("label", "id", colnames(nodelist)[which(colnames(nodelist) %in% c("rel_pos", "rel_pos_neg"))])
         nodelist_only_features <- nodelist[, !names(nodelist) %in% remove_columns, drop = FALSE]
-        target_column_order <- c("label", "id", "rel_pos", "rel_pos_neg", colnames(nodelist_only_features))
+        target_column_order <- c(remove_columns, colnames(nodelist_only_features))
         nodelist <- nodelist[, target_column_order]
-      }else{
-        remove_columns <- c("label", "id", "rel_pos")
-        nodelist_only_features <- nodelist[, !names(nodelist) %in% remove_columns, drop = FALSE]
-        target_column_order <- c("label", "id", "rel_pos", colnames(nodelist_only_features))
-        nodelist <- nodelist[, target_column_order]
-      }
+      
       
       
       # check 3a: unique label
@@ -114,18 +111,21 @@ server <- function(input, output, session) {
           } else {
             
             # check 5: rel_pos should only contain values >= 0
-            for (index in 1:nrow(nodelist)) {
-              if (nodelist$rel_pos[index] < 0) {
-                output$error_upload_nodes <- renderUI({
-                  HTML("<span style='color:red; font-size:14px'> <br/> ERROR: In the column 'rel_pos' are negative values. Make sure that it only contains values greater than or equal to zero! </span>")
-                })
-                
-                # disable third tab
-                shinyjs::js$disableTab("Interact")
-                
-                return(NULL)
+            if("rel_pos" %in% colnames(nodelist)){
+              for (index in 1:nrow(nodelist)) {
+                if (nodelist$rel_pos[index] < 0) {
+                  output$error_upload_nodes <- renderUI({
+                    HTML("<span style='color:red; font-size:14px'> <br/> ERROR: In the column 'rel_pos' are negative values. Make sure that it only contains values greater than or equal to zero! </span>")
+                  })
+                  
+                  # disable third tab
+                  shinyjs::js$disableTab("Interact")
+                  
+                  return(NULL)
+                }
               }
             }
+            
             # check 6: the graph must be homogeneous, all nodes of the same type
             if (anyNA.data.frame(nodelist)) {
               output$error_upload_nodes <- renderUI({
@@ -214,7 +214,6 @@ server <- function(input, output, session) {
   # validity checks on input file, containing data on edges ----------------------------------
   # @return input file named edgelist in case the validity checks are successful, otherwise in case of an error return NULL
   uploading_edges <- eventReactive(input$upload_edges, {
-    
     # read user input
     edgelist <- read.csv(input$upload_edges$datapath)
     
@@ -371,7 +370,7 @@ server <- function(input, output, session) {
               
               # enable third tab
               shinyjs::js$enableTab("Interact")
-              
+
               return(edgelist)
             }
           }
@@ -499,65 +498,40 @@ server <- function(input, output, session) {
     }
   })
   
-  # disable add/delete button, if no nodes/edges are in small_nodelist_for_table/small_edgelist
-  observeEvent(ignoreInit = T,c(input$modify_options, input$undo, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion),{
-    # disable delete node button
-    if(input$modify_options == "1"){
-      if(nrow(small_nodelist_for_table) == 0){
-        shinyjs::disable("confirm_node_deletion")
-      }else{
-        shinyjs::enable("confirm_node_deletion")
-      }
-    }
-    # disable delete edge button
-    if(input$modify_options == "3"){
-      if(nrow(small_edgelist) == 0){
-        shinyjs::disable("confirm_edge_deletion")
-      }else{
-        shinyjs::enable("confirm_edge_deletion")
-      }
-    }
-    # disable add edge button
-    if(input$modify_options == "4"){
-      # calculate the possible amount of edges between the nodes in small_nodelist_for_table
-      # if 5 nodes are shown in the graph 4+3+2+1 edges are possible between these nodes
-      # because there cannot be multiple edges between two nodes
-      # and if there are 3 other nodes in the graph each of the 5 nodes can connect to
-      # any of these 3 other nodes so 5*3 more edges are possible
-      
-      #amount of nodes in table
-      nodes_in_table <- nrow(small_nodelist_for_table)
-      #amount of nodes only in graph
-      nodes_only_in_graph <- (nrow(small_nodelist_for_graph) - nodes_in_table)
-      
-      possible_amount_of_edges_between_nodes_in_table <- sum(1:(nodes_in_table-1))
-      possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph <- (nodes_in_table*nodes_only_in_graph)
-      
-      total_possible_amount_of_edges <- (possible_amount_of_edges_between_nodes_in_table + possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph)
-  
-      if(nrow(small_edgelist) == total_possible_amount_of_edges){
-        shinyjs::disable("confirm_edge_addition")
-      }else{
-        shinyjs::enable("confirm_edge_addition")
-      }
-    }
-  })
-  
   # update radio buttons based on if rel_pos_neg is present
-  observeEvent(c(input$upload_nodes, input$upload_dataset),{
-    if(!("rel_pos_neg" %in% colnames(nodelist_table))){
+  observeEvent(ignoreInit = T,c(input$upload_edges, input$upload_dataset),{
+  if(!("rel_pos_neg" %in% colnames(nodelist_table) & !("rel_pos" %in% colnames(nodelist_table)))){
+      shinyjs::disable("radio")
+      
+      sorting <<- 0
+      
+    }
+    if(!("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
+      shinyjs::enable("radio")
+       updateRadioButtons(session, "radio",
+                          choices = list("rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
+                                         "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
+                          selected = "rel_pos_neg_highlow")
+      sorting <<- 1
+    }
+    if(("rel_pos" %in% colnames(nodelist_table)) & !("rel_pos_neg" %in% colnames(nodelist_table))){
+      shinyjs::enable("radio")
       updateRadioButtons(session, "radio",
                          choices = list("rel_pos (high to low)" = "rel_pos_highlow",
                                         "rel_pos (low to high)" = "rel_pos_lowhigh"), 
                          selected = "rel_pos_highlow")
-     }else{
-       updateRadioButtons(session, "radio",
-                          choices = list("rel_pos (high to low)" = "rel_pos_highlow",
-                                         "rel_pos (low to high)" = "rel_pos_lowhigh",
-                                         "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
-                                         "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
-                          selected = "rel_pos_highlow")
-     }
+      sorting <<- 1
+    }
+    if(("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
+      shinyjs::enable("radio")
+      updateRadioButtons(session, "radio",
+                         choices = list("rel_pos (high to low)" = "rel_pos_highlow",
+                                        "rel_pos (low to high)" = "rel_pos_lowhigh",
+                                        "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
+                                        "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
+                         selected = "rel_pos_highlow")
+      sorting <<- 1
+    }
   })
   
   ############################
@@ -717,6 +691,32 @@ server <- function(input, output, session) {
     
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
+    if(nrow(small_nodelist_for_table) != 0){
+      shinyjs::enable("confirm_node_deletion")
+    }
+    print(small_edgelist)
+    if(nrow(small_edgelist) != 0){
+      shinyjs::enable("confirm_edge_deletion")
+    }
+    # calculate the possible amount of edges between the nodes in small_nodelist_for_table
+    # if 5 nodes are shown in the graph 4+3+2+1 edges are possible between these nodes
+    # because there cannot be multiple edges between two nodes
+    # and if there are 3 other nodes in the graph each of the 5 nodes can connect to
+    # any of these 3 other nodes so 5*3 more edges are possible
+    
+    #amount of nodes in table
+    nodes_in_table <- nrow(small_nodelist_for_table)
+    #amount of nodes only in graph
+    nodes_only_in_graph <- (nrow(small_nodelist_for_graph) - nodes_in_table)
+    
+    possible_amount_of_edges_between_nodes_in_table <- sum(1:(nodes_in_table-1))
+    possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph <- (nodes_in_table*nodes_only_in_graph)
+    
+    total_possible_amount_of_edges <- (possible_amount_of_edges_between_nodes_in_table + possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph)
+    
+    if(nrow(small_edgelist) != total_possible_amount_of_edges){
+      shinyjs::enable("confirm_edge_addition")
+    }
   })
   
   # Initialize second dropdown of modification options ----------------------------------
@@ -800,6 +800,9 @@ server <- function(input, output, session) {
   
   # on button click "Delete Node" ----------------------------------
   observeEvent(input$confirm_node_deletion, {
+    # disbale deletion button until deletion is done
+    shinyjs::disable("confirm_node_deletion")
+    
     # read the node that has been selected by the user for deletion
     nodelist <- nodelist_table
     id <- nodelist$id[which(nodelist$label == input$choose_node_to_delete)]
@@ -853,6 +856,7 @@ server <- function(input, output, session) {
     # update list of nodes for node deletion
     updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
     
+    
     # update first input selection for edge addition
     nodes_that_can_be_connected <- c()
     for(id in small_nodelist_for_table$id){
@@ -887,7 +891,13 @@ server <- function(input, output, session) {
     output$edge_feature_overview <- renderDataTable({
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
+    
+    Sys.sleep(0.5)
+    if(nrow(small_nodelist_for_table) != 0){
+         shinyjs::enable("confirm_node_deletion")
+    }
   })
+  
   
   
   ##################################
@@ -896,6 +906,8 @@ server <- function(input, output, session) {
   
   # on button click "Delete Edge" ----------------------------------
   observeEvent(input$confirm_edge_deletion, {
+    # disable delete button until deletion is done
+    shinyjs::disable("confirm_edge_deletion")
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     
@@ -982,6 +994,11 @@ server <- function(input, output, session) {
     output$edge_feature_overview <- renderDataTable({
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
+    
+    Sys.sleep(0.5)
+    if(nrow(small_edgelist) != 0){
+      shinyjs::enable("confirm_edge_deletion")
+    }
   })
   
   
@@ -1029,6 +1046,7 @@ server <- function(input, output, session) {
   
   # on button click "Add Edge" ----------------------------------
   observeEvent(input$confirm_edge_addition, {
+    shinyjs::disable("confirm_edge_addition")
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     
@@ -1181,6 +1199,27 @@ server <- function(input, output, session) {
         output$edge_feature_overview <- renderDataTable({
           update_shown_edge_table(small_edgelist, nodelist_table)
         })
+        
+        Sys.sleep(0.5)
+        # calculate the possible amount of edges between the nodes in small_nodelist_for_table
+        # if 5 nodes are shown in the graph 4+3+2+1 edges are possible between these nodes
+        # because there cannot be multiple edges between two nodes
+        # and if there are 3 other nodes in the graph each of the 5 nodes can connect to
+        # any of these 3 other nodes so 5*3 more edges are possible
+        
+        #amount of nodes in table
+        nodes_in_table <- nrow(small_nodelist_for_table)
+        #amount of nodes only in graph
+        nodes_only_in_graph <- (nrow(small_nodelist_for_graph) - nodes_in_table)
+        
+        possible_amount_of_edges_between_nodes_in_table <- sum(1:(nodes_in_table-1))
+        possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph <- (nodes_in_table*nodes_only_in_graph)
+        
+        total_possible_amount_of_edges <- (possible_amount_of_edges_between_nodes_in_table + possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph)
+        
+        if(nrow(small_edgelist) != total_possible_amount_of_edges){
+          shinyjs::enable("confirm_edge_addition")
+        }
       }
     }
   })
@@ -1556,6 +1595,10 @@ server <- function(input, output, session) {
     output$edge_feature_overview <- renderDataTable({
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
+    
+    if(nrow(small_nodelist_for_table) != 0){
+      shinyjs::enable("confirm_node_deletion")
+    }
   }
   
   
@@ -1645,6 +1688,10 @@ server <- function(input, output, session) {
     output$edge_feature_overview <- renderDataTable({
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
+    
+    if(nrow(small_edgelist) != 0){
+      shinyjs::enable("confirm_edge_deletion")
+    }
   }
   
   # function to reverse the last edge addition ----------------------------------
@@ -1752,6 +1799,26 @@ server <- function(input, output, session) {
     # disable undo button, if modification_history is now empty
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
+    }
+    
+    # calculate the possible amount of edges between the nodes in small_nodelist_for_table
+    # if 5 nodes are shown in the graph 4+3+2+1 edges are possible between these nodes
+    # because there cannot be multiple edges between two nodes
+    # and if there are 3 other nodes in the graph each of the 5 nodes can connect to
+    # any of these 3 other nodes so 5*3 more edges are possible
+    
+    #amount of nodes in table
+    nodes_in_table <- nrow(small_nodelist_for_table)
+    #amount of nodes only in graph
+    nodes_only_in_graph <- (nrow(small_nodelist_for_graph) - nodes_in_table)
+    
+    possible_amount_of_edges_between_nodes_in_table <- sum(1:(nodes_in_table-1))
+    possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph <- (nodes_in_table*nodes_only_in_graph)
+    
+    total_possible_amount_of_edges <- (possible_amount_of_edges_between_nodes_in_table + possible_amount_of_edges_between_nodes_in_table_and_nodes_in_graph)
+    
+    if(nrow(small_edgelist) != total_possible_amount_of_edges){
+      shinyjs::enable("confirm_edge_addition")
     }
   }
   
@@ -1937,24 +2004,58 @@ server <- function(input, output, session) {
     }
   })
   
+  
   ###################################################################
   ######### Reset Coloring when Slider or Radio is changed ##########
   ###################################################################
   
-  observeEvent(c( 
+  observeEvent(ignoreInit = T,c( 
     # the events that trigger this
+    input$upload_edges,
+    input$upload_dataset,
     input$slider,
     input$radio
   ), {
-    updateSelectInput(session, "color_nodes",
-                      choices = list(
-                        "one color (default)",
-                        "rel_pos",
-                        "rel_pos_neg",
-                        "degree"),
-                      selected = "one color (default)"
-    )
+    
+    if(("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
+      updateSelectInput(session, "color_nodes",
+                        choices = list(
+                          "one color (default)",
+                          "rel_pos",
+                          "rel_pos_neg",
+                          "degree"),
+                        selected = "one color (default)"
+      )
+    }
+    if(!("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
+      updateSelectInput(session, "color_nodes",
+                        choices = list(
+                          "one color (default)",
+                          "rel_pos_neg",
+                          "degree"),
+                        selected = "one color (default)"
+      )
+    }
+    if(("rel_pos" %in% colnames(nodelist_table)) & !("rel_pos_neg" %in% colnames(nodelist_table))){
+      updateSelectInput(session, "color_nodes",
+                        choices = list(
+                          "one color (default)",
+                          "rel_pos",
+                          "degree"),
+                        selected = "one color (default)"
+      )
+    }
+    if(!("rel_pos" %in% colnames(nodelist_table)) & !("rel_pos_neg" %in% colnames(nodelist_table))){
+      updateSelectInput(session, "color_nodes",
+                        choices = list(
+                          "one color (default)",
+                          "degree"),
+                        selected = "one color (default)"
+      )
+    }
+    
   })
+  
   
   ############################################
   ######## Data Table Nodes and Edges ########
@@ -1963,24 +2064,29 @@ server <- function(input, output, session) {
   # reactive expression that extracts and prepares the current data on nodes and edges ----------------------------------
   # @return list with data.frame of nodes for presenting in a table, 
   #         data.frame of nodes for graph vis, and data.frame of edges for table and graph vis
-  calculate_smaller_node_and_edge_list <- eventReactive(c(input$upload_edges, input$slider, input$radio),{ 
+  calculate_smaller_node_and_edge_list <- eventReactive(c(input$upload_edges, input$upload_dataset, input$slider, input$radio),{ 
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     ### create sub node table ###
     
     # sort nodelist by XAI values (method is selected by radiobutton)
-    if(input$radio == "rel_pos_highlow"){
-      nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = TRUE),]
+    if(sorting){
+      if(input$radio == "rel_pos_highlow"){
+        nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = TRUE),]
+      }
+      if(input$radio == "rel_pos_lowhigh"){
+        nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = FALSE),]
+      }
+      if(input$radio == "rel_pos_neg_highlow"){
+        nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = TRUE),]
+      }
+      if(input$radio == "rel_pos_neg_lowhigh"){
+        nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = FALSE),]
+      }
+    }else{
+      nodelist_for_table <- nodelist
     }
-    if(input$radio == "rel_pos_lowhigh"){
-      nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = FALSE),]
-    }
-    if(input$radio == "rel_pos_neg_highlow"){
-      nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = TRUE),]
-    }
-    if(input$radio == "rel_pos_neg_lowhigh"){
-      nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = FALSE),]
-    }
+    
     # only show the amount of nodes selected by the sliding bar
     nodelist_for_table <- nodelist_for_table[1:input$slider,] 
     
@@ -2012,7 +2118,6 @@ server <- function(input, output, session) {
     # save in global variable
     small_nodelist_for_table <<- nodelist_for_table
     small_nodelist_for_graph <<- nodelist_for_graph
-    
     
     ### create sub edge table ###    
     

@@ -198,7 +198,7 @@ ui <- fluidPage(
              tabPanel("Interact",
                       fluidRow(
                         column(4,
-                               radioButtons("radio", label = h3("Select relevance values to sort nodes by"),
+                               radioButtons("radio", label = h3("Select relevance values to sort nodes by (only available if relevance values are present)"),
                                             choices = list("rel_pos (high to low)" = "rel_pos_highlow",
                                                            "rel_pos (low to high)" = "rel_pos_lowhigh",
                                                            "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
