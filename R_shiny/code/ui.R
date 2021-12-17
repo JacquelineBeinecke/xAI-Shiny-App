@@ -11,6 +11,8 @@ library(png)
 # for api #
 library(jsonlite)
 library(httr)
+library(xml2)
+library(ggplot2)
 
 
 ui <- fluidPage(
@@ -126,7 +128,7 @@ ui <- fluidPage(
                                       radioButtons("radio_input_type", label = h3("Upload your own data or use a predefined dataset"), 
                                                    choices = list("Upload your own dataset" = "own_data",
                                                                   "Choose a predefined dataset" = "pytorch_data"), 
-                                                   selected = "own_data", inline = TRUE), 
+                                                   selected = "pytorch_data", inline = TRUE), 
                                       )
                                ),
                       
@@ -196,22 +198,62 @@ ui <- fluidPage(
              
              # create tab on top to select amount of nodes to be shown
              tabPanel("Interact",
+                      column(12,
+                             fluidRow(
+                               column(12,
+                                      conditionalPanel(condition = "input.radio_input_type == 'pytorch_data'",
+                                                       wellPanel(
+                                                         selectizeInput("choose_patient", h4("Select patient to see their graph:"), 
+                                                                        choices = c())
+                                                       )
+                                      ),
+                                      conditionalPanel(condition = "input.radio_input_type == 'own_data'",
+                                                       wellPanel(
+                                                         selectizeInput("choose_patient_own_data", h4("Select patient to see their graph:"), 
+                                                                        choices = c())
+                                                       )
+                                      )
+                               )
+                             )
+                      
+                      ),
                       fluidRow(
-                        column(4,
-                               radioButtons("radio", label = h3("Select relevance values to sort nodes by (only available if relevance values are present)"),
-                                            choices = list("rel_pos (high to low)" = "rel_pos_highlow",
-                                                           "rel_pos (low to high)" = "rel_pos_lowhigh",
-                                                           "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
-                                                           "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
-                                            selected = "rel_pos_highlow")
-                        ),
-                        column(8, 
-                               #default nodes to display is 3 (value = 3)
-                               #default max is 100 but this gets updated as soon as node and edge data are uploaded
-                               #then the max value will always be the amount of nodes in the data
-                               sliderInput("slider", label = h3("Select how many nodes to display (their next neighbours will also be displayed in the graph)"), 
-                                           min = 1, max = 100, value = 3) 
-                        )
+                        column(12,
+                               column(7,
+                                      radioButtons("radio", label = HTML("<h3>","<p style='line-height:60%'>","Select relevance values to sort nodes by", "</p></h3>", "<h5>", "(only available if relevance values are present)","</h5>"),
+                                                   choices = list("rel_pos (high to low)" = "rel_pos_highlow",
+                                                                  "rel_pos (low to high)" = "rel_pos_lowhigh",
+                                                                  "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
+                                                                  "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
+                                                   selected = "rel_pos_highlow", width = "500px"),
+                                      #default nodes to display is 3 (value = 3)
+                                      #default max is 100 but this gets updated as soon as node and edge data are uploaded
+                                      #then the max value will always be the amount of nodes in the data
+                                      sliderInput("slider", label = HTML("<h3>","<p style='line-height:60%'>","Select how many nodes to display","</p></h3>", "<h5>","(their next neighbours will also be displayed in the graph)","</h5>"), 
+                                                  min = 1, max = 100, value = 1, width = "500px") 
+                                      
+                               ),
+                               column(5, align = "center",
+                                      wellPanel(
+                                        fluidRow(
+                                          column(12,
+                                                 htmlOutput("sens_spec"),
+                                                 br(),
+                                                 # output confusion matrix
+                                                 tags$div(style = "height:250px",plotOutput("confmatrix")),
+                                                 br(),
+                                                 tags$div(style = "display:inline-block",
+                                                          downloadButton("download", label = "Download", class = "btn-success"),
+                                                          actionButton("predict", "Predict", class = "btn-primary"),
+                                                          actionButton("retrain", "Re-train", class = "btn-primary")
+                                                 )
+                                                 
+                                          )
+                                        )
+                                      )
+                               )
+                               )
+                        
                       ),
                       fluidRow(
                         column(12,
@@ -239,22 +281,6 @@ ui <- fluidPage(
                                
                                # side bar on the right
                                column(4,
-                                      
-                                      # download-, re-train-, predict-buttons
-                                      fluidRow(
-                                        column(12,
-                                               align = "center",
-                                               downloadButton("download", label = "Download", class = "btn-success"),
-                                               tags$div(style = "display:inline-block", title = "This functionality hasn't launched yet",
-                                                        actionButton("predict", "Predict", class = "btn-primary"),
-                                                        actionButton("retrain", "Re-train", class = "btn-primary")
-                                               ),
-                                               verbatimTextOutput("message_no_predict"),
-                                               verbatimTextOutput("message_no_retrain")
-                                        )
-                                      ),
-                                      br(),
-                                      
                                       # color nodes by attributes
                                       wellPanel(
                                         fluidRow(
