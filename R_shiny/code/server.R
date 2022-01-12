@@ -4,31 +4,31 @@ server <- function(input, output, session) {
   ##################################
   
   # global variables that contain the modified graph data. These will be downloaded by the user (and would be returned to an API)
-  nodelist_table <- data.frame()
-  edgelist_table <- data.frame()
+  nodelist_table <<- data.frame()
+  edgelist_table <<- data.frame()
   
   # this contains all selected nodes and their corresponding edges
-  small_nodelist_for_table <- data.frame()
-  small_edgelist <- data.frame()
+  small_nodelist_for_table <<- data.frame()
+  small_edgelist <<- data.frame()
   
   # this contains more than the selected nodes, because we also need to visualize the neighboring nodes
-  small_nodelist_for_graph <- data.frame()
+  small_nodelist_for_graph <<- data.frame()
   
   # empty data tables that will be used to save user modification actions and thus allow the undo function
-  modification_history <- data.frame(action = c(0), element = c(0))
-  all_deleted_nodes <- data.frame()
-  all_deleted_nodes_edges <- list()
-  all_deleted_edges <- data.frame()
-  all_added_edges <- data.frame()
-  all_added_nodes <- data.frame()
+  modification_history <<- data.frame(action = c(0), element = c(0))
+  all_deleted_nodes <<- data.frame()
+  all_deleted_nodes_edges <<- list()
+  all_deleted_edges <<- data.frame()
+  all_added_edges <<- data.frame()
+  all_added_nodes <<- data.frame()
   
   # global variable for temporary use during node addition
-  node_features_list <- data.frame()
-  temporary_added_node_feature <- data.frame()
+  node_features_list <<- data.frame()
+  temporary_added_node_feature <<- data.frame()
   
   # global variable for temporary use during edge addition
-  edge_features_list <- data.frame()
-  temporary_added_edge_feature <- data.frame()
+  edge_features_list <<- data.frame()
+  temporary_added_edge_feature <<- data.frame()
   
   # global variable that monitors if sorting data py rel_pos/rel_pos_neg is enabled or not (is disabled when no relevance values are given)
   sorting <<- 0
@@ -418,107 +418,65 @@ server <- function(input, output, session) {
       updateSelectizeInput(session, "choose_patient", choices = patient_names, server = TRUE)
   })
   
-  # observeEvent(ignoreInit = TRUE, input$choose_patient, {
-  #   # get graph of selected dataset and patient
-  #   r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = input$choose_patient, graph_id = graph_idx))
-  #   stop_for_status(r)
-  #   graph <- fromJSON(content(r, type = "text"))
-  #   graph_df <- data.frame(graph)
-  #  
-  #   ### reading in nodes ###
-  #   nodelist <- as.data.frame(graph_df$data[[1]])
-  #   colnames(nodelist) <- graph_df$columns[[1]]
-  # 
-  #   # order data frame by node label from A-Z
-  #   nodelist <- nodelist[order(nodelist$label), ]
-  #   
-  #   # initialize global variables for API / download
-  #   nodelist_table <<- nodelist
-  #   
-  #   # initialize global variables for node addition
-  #   # vector, containing all names of node features, including rel_pos and rel_pos_neg
-  #   node_features_list <<- nodelist_table[, c(3:ncol(nodelist_table))]
-  #   # all columns of nodelist but with only one row that is initialized with placeholder and zeros for relevances / attributes of a new node
-  #   temporary_added_node_feature <<- nodelist_table[0, ]
-  #   temporary_added_node_feature[nrow(temporary_added_node_feature) + 1, ] <<- c("label_value", "id_value", rep(0, length(colnames(nodelist_table)) - 2))
-  #   temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)] <<- as.numeric(temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)])
-  #   
-  #   # update max Slider value to amount of nodes
-  #   max = length(nodelist_table[[1]])
-  #   updateSliderInput(session, "slider", max=max)
-  #   
-  #   
-  #   ### reading in edges ###
-  #   
-  #   edgelist <- as.data.frame(graph_df$data[[2]])
-  #   colnames(edgelist) <- graph_df$columns[[2]]
-  #   
-  #   # order data frame from A-Z
-  #   edgelist <- edgelist[order(edgelist$from), ]
-  #   
-  #   # initialize global variables for API / download
-  #   edgelist_table <<- edgelist
-  #   
-  #   # initialize global variables for edge addition
-  #   # vector, containing all names of edge features, including rel_pos and rel_pos_neg
-  #   edge_features_list <<- subset(edgelist_table, select = -c(1:3))
-  #   # all columns of edgelist but with only one row that is initialized with placeholder and zeros for adding an edge
-  #   temporary_added_edge_feature <<- edgelist_table[0, ]
-  #   temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
-  #   temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
-  #   
-  #   # in case the user uploads new data after some modifications have already been made, global variables for modification actions need to be empty again
-  #   modification_history <<- data.frame(action = c(0), element = c(0))
-  #   all_deleted_nodes <<- data.frame()
-  #   all_deleted_nodes_edges <<- list()
-  #   all_deleted_edges <<- data.frame()
-  #   all_added_edges <<- data.frame()
-  #   all_added_nodes <<- data.frame()
+   observeEvent(ignoreInit = TRUE, input$choose_patient, {
+     # get patient id
+     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+     
+     # get graph of selected dataset and patient
+     r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
+     stop_for_status(r)
+     graph <- fromJSON(content(r, type = "text"))
+     
+     load_graph_from_json(graph)
+     
+     # update max Slider value to amount of nodes
+     max = length(nodelist_table[[1]])
+     updateSliderInput(session, "slider", max=max)
+     
+     # set graph ID back to zero if new patient is selected
+     graph_idx <<- 0
   
-  #   # set graph ID back to zero if new patient is selected
-  #   graph_idx <<- 0
-  #   
-  #   # clear any printed error messages on the UI
-  #   output$info_change <- renderUI({
-  #     HTML(" ")
-  #   })
-  #   
-  #   output$error_only_zeros <- renderUI({
-  #     HTML(" ")
-  #   })
-  #   
-  #   output$error_add_node <- renderUI({
-  #     HTML(" ")
-  #   })
-  #   
-  #   output$error_add_edge <- renderUI({
-  #     HTML(" ")
-  #   })
-  #   
-  #   # empty all text input fields of edge and node addition
-  #   updateNumericInput(session, "edgefeature_value", value = 0)
-  #   updateTextInput(session, "new_node_label", value = "", placeholder = "e.g. ABCC2")
-  #   updateNumericInput(session, "nodefeature_value", value = 0)
-  #   
-  #   # reset the select Input of color nodes by
-  #   updateSelectInput(session, "color_nodes", selected = "one color (default)")
-  #   
-  #   calculate_smaller_node_and_edge_list()
-  #   
-  #   # enable third tab
-  #   shinyjs::js$enableTab("Interact")
-  # })
+     # clear any printed error messages on the UI
+     output$info_change <- renderUI({
+       HTML(" ")
+     })
+  
+     output$error_only_zeros <- renderUI({
+       HTML(" ")
+     })
+  
+     output$error_add_node <- renderUI({
+       HTML(" ")
+     })
+  
+     output$error_add_edge <- renderUI({
+       HTML(" ")
+     })
+  
+     # empty all text input fields of edge and node addition
+     updateNumericInput(session, "edgefeature_value", value = 0)
+     updateTextInput(session, "new_node_label", value = "", placeholder = "e.g. ABCC2")
+     updateNumericInput(session, "nodefeature_value", value = 0)
+  
+     # reset the select Input of color nodes by
+     updateSelectInput(session, "color_nodes", selected = "one color (default)")
+  
+     calculate_smaller_node_and_edge_list()
+  
+     # enable third tab
+     shinyjs::js$enableTab("Interact")
+   })
   
   ###################################################
   ######## dis/enable/update tabs/functions #########
   ###################################################
   
   # initially disable Interact tab by start of the shiny App ----------------------------------
-  #observe({
-  #  if (is.null(input$upload_nodes)) {
-  #    shinyjs::js$disableTab("Interact")
-  #  }
-  #})
+  observe({
+    if (is.null(input$upload_nodes)) {
+      shinyjs::js$disableTab("Interact")
+    }
+  })
   
   # update radio buttons based on if rel_pos_neg or rel_pos is present
   observeEvent(ignoreInit = T,c(input$upload_edges, input$choose_patient),{
@@ -557,30 +515,34 @@ server <- function(input, output, session) {
   })
   
   # disable selection of uploading own dataset
-  #shinyjs::disable("radio_input_type")
+  shinyjs::disable("radio_input_type")
   
   ############################
   ######### Retrain ##########
   ############################
   
   observeEvent(input$retrain, {
-    # post modification history to API
-    post_modifications(input$choose_patient, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
-    # at the end delete all modifications
-    modification_history <<- data.frame(action = c(0), element = c(0))
-    all_deleted_nodes <<- data.frame()
-    all_deleted_nodes_edges <<- list()
-    all_deleted_edges <<- data.frame()
-    all_added_edges <<- data.frame()
-    all_added_nodes <<- data.frame()
+    # get patient id
+    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    
+    # post modification history to API if changes are made
+    if(nrow(modification_history)>1){
+      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
+      # update graph id 
+      graph_idx <<- graph_idx +1
+    }
+    
     
     # get retrained graph values
-    r <- GET(paste(api_path, "/nn_retrain",sep=""))
+    r <- GET(paste(api_path, "/nn_retrain",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
     stop_for_status(r)
-    graph <- content(r, type = "text")
+    graph <- fromJSON(content(r, type = "text"))
+    load_graph_from_json(graph)
     
-    # update graph id 
-    graph_idx <<- graph_idx +1
+    # reset the select Input of color nodes by
+    updateSelectInput(session, "color_nodes", selected = "one color (default)")
+    
+    calculate_smaller_node_and_edge_list()
   })
   
   ############################
@@ -588,22 +550,25 @@ server <- function(input, output, session) {
   ############################
   
   observeEvent(input$predict, {
-    # post modification history to API
-    post_modifications(modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
-    # at the end delete all modifications
-    modification_history <<- data.frame(action = c(0), element = c(0))
-    all_deleted_nodes <<- data.frame()
-    all_deleted_nodes_edges <<- list()
-    all_deleted_edges <<- data.frame()
-    all_added_edges <<- data.frame()
-    all_added_nodes <<- data.frame()
-    # get retrained graph values
-    r <- GET(paste(api_path, "/nn_predict",sep=""))
-    stop_for_status(r)
-    graph <- content(r, type = "text")
+    # get patient id
+    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    # post modification history to API if changes are made
+    if(nrow(modification_history)>1){
+      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
+      # update graph id 
+      graph_idx <<- graph_idx +1
+    }
     
-    # update graph id 
-    graph_idx <<- graph_idx +1
+    # get retrained graph values
+    r <- GET(paste(api_path, "/nn_predict",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
+    stop_for_status(r)
+    graph <- fromJSON(content(r, type = "text"))
+    load_graph_from_json(graph)
+    
+    # reset the select Input of color nodes by
+    updateSelectInput(session, "color_nodes", selected = "one color (default)")
+    
+    calculate_smaller_node_and_edge_list()
   })
   
 
@@ -617,7 +582,10 @@ server <- function(input, output, session) {
     # the events that trigger this
     input$upload_edges,
     input$slider,
-    input$radio
+    input$radio,
+    input$choose_patient,
+    input$retrain,
+    input$predict
     ), {
     
     # create graph element

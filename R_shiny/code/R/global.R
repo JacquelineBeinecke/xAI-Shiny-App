@@ -30,8 +30,69 @@ app_css <-
     border-color: #aaa !important;
   } "
 
+###############################################
+######## function for loading data ############
+###############################################
 
-
+load_graph_from_json <- function(json_graph){
+  # turn graph into data frame
+  graph_df <- data.frame(json_graph)
+  
+  ########################
+  ### reading in nodes ###
+  ########################
+  
+  nodelist <- as.data.frame(graph_df$data[[1]])
+  colnames(nodelist) <- graph_df$columns[[1]]
+  
+  # order data frame by node label from A-Z
+  nodelist <- nodelist[order(nodelist$label), ]
+  
+  # initialize global variables for API / download
+  nodelist_table <<- nodelist
+  
+  # initialize global variables for node addition
+  # vector, containing all names of node features, including rel_pos and rel_pos_neg
+  node_features_list <<- nodelist_table[, c(3:ncol(nodelist_table))]
+  # all columns of nodelist but with only one row that is initialized with placeholder and zeros for relevances / attributes of a new node
+  temporary_added_node_feature <<- nodelist_table[0, ]
+  temporary_added_node_feature[nrow(temporary_added_node_feature) + 1, ] <<- c("label_value", "id_value", rep(0, length(colnames(nodelist_table)) - 2))
+  temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)] <<- as.numeric(temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)])
+  
+  ########################
+  ### reading in edges ###
+  ########################
+  
+  edgelist <- as.data.frame(graph_df$data[[2]])
+  colnames(edgelist) <- graph_df$columns[[2]]
+  
+  # order data frame from A-Z
+  edgelist <- edgelist[order(edgelist$from), ]
+  
+  # initialize global variables for API / download
+  edgelist_table <<- edgelist
+  
+  # initialize global variables for edge addition
+  # vector, containing all names of edge features, including rel_pos and rel_pos_neg
+  edge_features_list <<- subset(edgelist_table, select = -c(1:3))
+  # all columns of edgelist but with only one row that is initialized with placeholder and zeros for adding an edge
+  temporary_added_edge_feature <<- edgelist_table[0, ]
+  temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
+  temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
+  
+  
+  #################################
+  ### init modification history ###
+  #################################
+  
+  # in case the user uploads new data after some modifications have already been made, global variables for modification actions need to be empty again
+  modification_history <<- data.frame(action = c(0), element = c(0))
+  all_deleted_nodes <<- data.frame()
+  all_deleted_nodes_edges <<- list()
+  all_deleted_edges <<- data.frame()
+  all_added_edges <<- data.frame()
+  all_added_nodes <<- data.frame()
+}
 
 #############################################
 ######## functions for table vis ############
