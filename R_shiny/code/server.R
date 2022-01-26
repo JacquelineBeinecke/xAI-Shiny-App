@@ -418,10 +418,15 @@ server <- function(input, output, session) {
       updateSelectizeInput(session, "choose_patient", choices = patient_names, server = TRUE)
   })
   
-   observeEvent(ignoreInit = TRUE, input$choose_patient, {
+  observeEvent(ignoreInit = TRUE, input$choose_patient, {
      # get patient id
      pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
      
+     # get the amount of modified graphs saved for this patient
+     r <- GET(paste(api_path, "/data/highest_graph_id",sep=""), query = list(patient_id = pat_id))
+     stop_for_status(r)
+     graph_idx <<- as.numeric(fromJSON(content(r, type = "text"), flatten = TRUE))
+  
      # get graph of selected dataset and patient
      r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
      stop_for_status(r)
@@ -432,9 +437,6 @@ server <- function(input, output, session) {
      # update max Slider value to amount of nodes
      max = length(nodelist_table[[1]])
      updateSliderInput(session, "slider", max=max)
-     
-     # set graph ID back to zero if new patient is selected
-     graph_idx <<- 0
   
      # clear any printed error messages on the UI
      output$info_change <- renderUI({
@@ -2018,7 +2020,7 @@ server <- function(input, output, session) {
   # should be in case that "one color (default)" is selected
   output$uilegend <- renderUI({
     if("rel_pos" %in% input$color_nodes | "rel_pos_neg" %in% input$color_nodes | "degree" %in% input$color_nodes){
-      plotOutput(outputId = "legend", height= "250px", bg="transparent") #maybe remove background transparent (not testes yet)
+      plotOutput(outputId = "legend", height= "250px") #maybe remove background transparent (not testes yet)
     }
   })
   
