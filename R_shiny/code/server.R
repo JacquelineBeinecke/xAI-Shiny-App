@@ -408,6 +408,7 @@ server <- function(input, output, session) {
   ######## upload whole dataset #########
   #######################################
   
+  # update selectize input for patients
   observeEvent(input$upload_dataset, {
       # get list of patient names
       patient_names <- GET(paste(api_path, "/data/patient_name",sep=""), query = list(dataset_name = input$choose_a_dataset))
@@ -418,6 +419,7 @@ server <- function(input, output, session) {
       updateSelectizeInput(session, "choose_patient", choices = patient_names, server = TRUE)
   })
   
+  # load graph of selected patient
   observeEvent(ignoreInit = TRUE, input$choose_patient, {
      # get patient id
      pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
@@ -426,7 +428,15 @@ server <- function(input, output, session) {
      r <- GET(paste(api_path, "/data/highest_graph_id",sep=""), query = list(patient_id = pat_id))
      stop_for_status(r)
      graph_idx <<- as.numeric(fromJSON(content(r, type = "text"), flatten = TRUE))
-  
+     
+     # enable restore button if graph_idx is larger than 0
+     if(graph_idx > 0){
+       # enable restore button
+       shinyjs::enable("restore")
+     }else{
+       # disable restore button
+       shinyjs::disable("restore")
+     }
      # get graph of selected dataset and patient
      r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
      stop_for_status(r)
@@ -519,6 +529,9 @@ server <- function(input, output, session) {
   # disable selection of uploading own dataset
   shinyjs::disable("radio_input_type")
   
+  # disable restore button
+  shinyjs::disable("restore")
+  
   ############################
   ######### Retrain ##########
   ############################
@@ -528,7 +541,7 @@ server <- function(input, output, session) {
     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
     
     # post modification history to API if changes are made
-    if(nrow(modification_history)>1){
+    #if(nrow(modification_history)>1){
       
       # create deepcopy of graph in the backend
       r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
@@ -539,8 +552,8 @@ server <- function(input, output, session) {
       graph_idx <<- graph_idx +1
       
       # send modifications to API
-      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
-    }
+      #post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
+    #}
     
     
     # get retrained graph values
@@ -553,6 +566,9 @@ server <- function(input, output, session) {
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
     
     calculate_smaller_node_and_edge_list()
+    
+    # enable restore button
+    shinyjs::enable("restore")
   })
   
   ############################
@@ -588,6 +604,9 @@ server <- function(input, output, session) {
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
     
     calculate_smaller_node_and_edge_list()
+    
+    # enable restore button
+    shinyjs::enable("restore")
   })
   
 
@@ -662,6 +681,64 @@ server <- function(input, output, session) {
     })
   })
   
+  
+  
+  
+  ##################################
+  ######### Restore Graph ##########
+  ##################################
+  
+  observeEvent(input$restore, {
+    # get patient id
+    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+
+    # restore patient graph
+    r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx-1))
+    stop_for_status(r)
+    graph <- fromJSON(content(r, type = "text"))
+    
+    load_graph_from_json(graph)
+    
+    # update max Slider value to amount of nodes
+    max = length(nodelist_table[[1]])
+    updateSliderInput(session, "slider", max=max)
+    
+    # clear any printed error messages on the UI
+    output$info_change <- renderUI({
+      HTML(" ")
+    })
+    
+    output$error_only_zeros <- renderUI({
+      HTML(" ")
+    })
+    
+    output$error_add_node <- renderUI({
+      HTML(" ")
+    })
+    
+    output$error_add_edge <- renderUI({
+      HTML(" ")
+    })
+    
+    # empty all text input fields of edge and node addition
+    updateNumericInput(session, "edgefeature_value", value = 0)
+    updateTextInput(session, "new_node_label", value = "", placeholder = "e.g. ABCC2")
+    updateNumericInput(session, "nodefeature_value", value = 0)
+    
+    # reset the select Input of color nodes by
+    updateSelectInput(session, "color_nodes", selected = "one color (default)")
+    
+    calculate_smaller_node_and_edge_list()
+    
+    # delete latest graph, the user will never be able to return to it
+    r <- DELETE(paste(api_path, "/data/graph/",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
+    stop_for_status(r)
+    graph_idx <<- graph_idx - 1
+    
+    if(graph_idx == 0){
+      shinyjs::disable("restore")
+    }
+  })
   
   ##################################
   ### Initialize modify options ####

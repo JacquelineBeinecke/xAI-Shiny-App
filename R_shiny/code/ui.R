@@ -230,7 +230,7 @@ ui <- fluidPage(
                                       #default max is 100 but this gets updated as soon as node and edge data are uploaded
                                       #then the max value will always be the amount of nodes in the data
                                       sliderInput("slider", label = HTML("<h3>","<p style='line-height:60%'>","Select how many nodes to display","</p></h3>", "<h5>","(their next neighbours will also be displayed in the graph)","</h5>"), 
-                                                  min = 1, max = 100, value = 1, width = "500px") 
+                                                  min = 1, max = 100, value = 3, width = "500px") 
                                       
                                ),
                                column(5, align = "center",
@@ -307,22 +307,21 @@ ui <- fluidPage(
                                       wellPanel(
                                         fluidRow(
                                           column(12,
-                                                 column(8,
-                                                        # modification options
-                                                        radioButtons("modify_options", h3("Modify Graph:"),
-                                                                     choices = list(
-                                                                       "Delete Node" = 1,
-                                                                       "Add a new Node" = 2,
-                                                                       "Delete Edge" = 3,
-                                                                       "Add a new Edge" = 4
-                                                                     ),
-                                                                     selected = character(0)
-                                                        ),
+                                                 tags$div(style = "display:inline-block", title = "Undo modifications. Only enabled when modifications were performed.",
+                                                          actionButton("undo", "Undo", icon("undo"), class = "btn-primary"),
                                                  ),
-                                                 # undo Button
-                                                 column(4,
-                                                        actionButton("undo", "Undo", icon("undo"), class = "btn-primary")
-                                                 )
+                                                 tags$div(style = "display:inline-block", title = "Restore graph to the state before using predict/retrain. Only enabled until the original graph is restored.",
+                                                          actionButton("restore", "Restore", icon("backward"), class = "btn-primary")
+                                                 ),
+                                                 # modification options
+                                                 radioButtons("modify_options", h3("Modify Graph:"),
+                                                              choices = list(
+                                                                "Delete Node" = 1,
+                                                                "Add a new Node" = 2,
+                                                                "Delete Edge" = 3,
+                                                                "Add a new Edge" = 4
+                                                                ), 
+                                                              selected = character(0))
                                           ),
                                           # inform the user on the last change
                                           column(12,
