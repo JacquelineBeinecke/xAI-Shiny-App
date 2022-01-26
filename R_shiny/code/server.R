@@ -527,9 +527,17 @@ server <- function(input, output, session) {
     
     # post modification history to API if changes are made
     if(nrow(modification_history)>1){
-      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
-      # update graph id 
+      
+      # create deepcopy of graph in the backend
+      r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
+      # throw error if status returns something else than 200 (so if it didnt work)
+      stop_for_status(r)
+      
+      # update graph_idx, so that changes now get made on the deep_copy and not the modification.
       graph_idx <<- graph_idx +1
+      
+      # send modifications to API
+      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
     }
     
     
@@ -552,11 +560,20 @@ server <- function(input, output, session) {
   observeEvent(input$predict, {
     # get patient id
     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    
     # post modification history to API if changes are made
     if(nrow(modification_history)>1){
-      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
-      # update graph id 
+      
+      # create deepcopy of graph in the backend
+      r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
+      # throw error if status returns something else than 200 (so if it didnt work)
+      stop_for_status(r)
+      
+      # update graph_idx, so that changes now get made on the deep_copy and not the modification.
       graph_idx <<- graph_idx +1
+      
+      # send modifications to API
+      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
     }
     
     # get retrained graph values
