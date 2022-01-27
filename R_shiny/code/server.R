@@ -1162,6 +1162,11 @@ server <- function(input, output, session) {
       
       # clear numeric input, after an edge value was entered
       updateNumericInput(session, "edgefeature_value", value = 0)
+      print(length(feature_names))
+      # disable enter button if there are no more features to add values for
+      if(length(feature_names)==0){
+        shinyjs::disable("confirm_edgeFeature_value")
+      }
     }
   })
   
@@ -1353,6 +1358,8 @@ server <- function(input, output, session) {
         if(nrow(small_edgelist) != total_possible_amount_of_edges){
           shinyjs::enable("confirm_edge_addition")
         }
+        # enable enter of values again (it may have been turned off after enter all feature values)
+        shinyjs::enable("confirm_edgeFeature_value")
       }
     }
   })
@@ -1429,6 +1436,11 @@ server <- function(input, output, session) {
           output$error_add_node <- renderUI({
             HTML(" ")
           })
+          
+          # disable enter button if there are no more features to add values for
+          if(length(feature_names)==0){
+            shinyjs::disable("confirm_nodeFeature_value")
+          }
         } else {
           output$error_add_node <- renderUI({
             HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The entered label is already taken. Please enter a new label! </span>")
@@ -1574,6 +1586,9 @@ server <- function(input, output, session) {
             output$edge_feature_overview <- renderDataTable({
               update_shown_edge_table(small_edgelist, nodelist_table)
             })
+            
+            # enable enter of values again (it may have been turned off after enter all feature values)
+            shinyjs::enable("confirm_nodeFeature_value")
             
           } else {
             # error message when a feature value is entered and requires to press "enter" first
