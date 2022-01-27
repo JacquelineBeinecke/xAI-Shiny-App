@@ -403,7 +403,9 @@ ui <- fluidPage(
                                                          actionButton("confirm_edge_addition", "Add Edge", class = "btn-primary"),
                                                          actionButton("cancel_edge_addition", "Cancel"),
                                                        )
-                                      )
+                                      ),
+                                      tags$style(HTML("#log {height:600px}")),
+                                      verbatimTextOutput("log", placeholder = FALSE)
                                )
                         )
                       )

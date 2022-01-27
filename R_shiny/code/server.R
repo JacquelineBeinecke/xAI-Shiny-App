@@ -30,11 +30,12 @@ server <- function(input, output, session) {
   edge_features_list <<- data.frame()
   temporary_added_edge_feature <<- data.frame()
   
-  # global variable that monitors if sorting data py rel_pos/rel_pos_neg is enabled or not (is disabled when no relevance values are given)
+  # global variable that monitors if sorting data by rel_pos/rel_pos_neg is enabled or not (is disabled when no relevance values are given)
   sorting <<- 0
   
   # global variable that indexes the graphs (this always get +1 if predict or retrain is pressed)
   graph_idx <<- 0
+  
   
   ##################################
   ######### upload nodes ###########
@@ -417,10 +418,15 @@ server <- function(input, output, session) {
       
       # update selection of patients by name
       updateSelectizeInput(session, "choose_patient", choices = patient_names, server = TRUE)
+      
+      # update log about selected dataset
+      updateLog(paste("Dataset selected: ", input$choose_a_dataset, sep=""))
+      
   })
   
   # load graph of selected patient
   observeEvent(ignoreInit = TRUE, input$choose_patient, {
+     
      # get patient id
      pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
      
@@ -428,6 +434,9 @@ server <- function(input, output, session) {
      r <- GET(paste(api_path, "/data/highest_graph_id",sep=""), query = list(patient_id = pat_id))
      stop_for_status(r)
      graph_idx <<- as.numeric(fromJSON(content(r, type = "text"), flatten = TRUE))
+     
+     # update log about selected patient
+     updateLog(paste("Patient selected: ", input$choose_patient, ", Amount of modified graphs: ", graph_idx, sep=""))
      
      # enable restore button if graph_idx is larger than 0
      if(graph_idx > 0){
@@ -437,6 +446,7 @@ server <- function(input, output, session) {
        # disable restore button
        shinyjs::disable("restore")
      }
+     
      # get graph of selected dataset and patient
      r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
      stop_for_status(r)
@@ -537,11 +547,14 @@ server <- function(input, output, session) {
   ############################
   
   observeEvent(input$retrain, {
+    # update log about Retraining
+    updateLog("Retraining GNN")
+    
     # get patient id
     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
     
     # post modification history to API if changes are made
-    #if(nrow(modification_history)>1){
+    if(nrow(modification_history)>1){
       
       # create deepcopy of graph in the backend
       r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
@@ -553,7 +566,7 @@ server <- function(input, output, session) {
       
       # send modifications to API
       #post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
-    #}
+    }
     
     
     # get retrained graph values
@@ -576,6 +589,9 @@ server <- function(input, output, session) {
   ############################
   
   observeEvent(input$predict, {
+    # update log about selected patient
+    updateLog("Predicting on GNN")
+    
     # get patient id
     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
     
@@ -591,7 +607,7 @@ server <- function(input, output, session) {
       graph_idx <<- graph_idx +1
       
       # send modifications to API
-      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
+      #post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
     }
     
     # get retrained graph values
@@ -689,6 +705,9 @@ server <- function(input, output, session) {
   ##################################
   
   observeEvent(input$restore, {
+    # update log about selected patient
+    updateLog("Current modified graph deleted and version before restored")
+    
     # get patient id
     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
 
@@ -897,6 +916,9 @@ server <- function(input, output, session) {
   
   # on button click "Delete Node" ----------------------------------
   observeEvent(input$confirm_node_deletion, {
+    # update log about selected node to delete
+    updateLog(paste("Node deleted: ", input$choose_node_to_delete, sep=""))
+    
     # disbale deletion button until deletion is done
     shinyjs::disable("confirm_node_deletion")
     
@@ -1003,6 +1025,9 @@ server <- function(input, output, session) {
   
   # on button click "Delete Edge" ----------------------------------
   observeEvent(input$confirm_edge_deletion, {
+    # update log about selected patient
+    updateLog(paste("Edge deleted between nodes: ", input$choose_first_connected_node_delete, " and ", input$choose_second_connected_node_delete, sep=""))
+    
     # disable delete button until deletion is done
     shinyjs::disable("confirm_edge_deletion")
     nodelist <- nodelist_table
@@ -1188,6 +1213,17 @@ server <- function(input, output, session) {
         edgelist_table <<- rbind(edgelist_table, temporary_added_edge_feature)
         edgelist_table <<- edgelist_table[order(edgelist_table$from), ]
         small_edgelist <<- rbind(small_edgelist, temporary_added_edge_feature)
+        
+        # update log about selected patient
+        temp_log <- c()
+        for(i in 1:ncol(temporary_added_edge_feature)){
+          if(i!=ncol(temporary_added_edge_feature)){
+            temp_log[i] <- paste(names(temporary_added_edge_feature)[i], ": ", temporary_added_edge_feature[[i]][1], ", ", sep="")
+          }else{ # this case is so that there is no comma at the end
+            temp_log[i] <- paste(names(temporary_added_edge_feature)[i], ": ", temporary_added_edge_feature[[i]][1], sep="")
+          }
+        }
+        updateLog(paste("Edge added: ", paste(temp_log, collapse=""), sep=""))
         
         # add tooltip information for the new edge (from-to, rel_pos, rel_pos_neg)
         added_edge <- temporary_added_edge_feature
@@ -1463,6 +1499,17 @@ server <- function(input, output, session) {
             small_nodelist_for_table <<- rbind(small_nodelist_for_table, temporary_added_node_feature)
             small_nodelist_for_graph <<- rbind(small_nodelist_for_graph, temporary_added_node_feature)
             
+            # update log about selected patient
+            temp_log <- c()
+            for(i in 1:ncol(temporary_added_node_feature)){
+              if(i!=ncol(temporary_added_node_feature)){
+                temp_log[i] <- paste(names(temporary_added_node_feature)[i], ": ", temporary_added_node_feature[[i]][1], ", ", sep="")
+              }else{ # this case is so that there is no comma at the end
+                temp_log[i] <- paste(names(temporary_added_node_feature)[i], ": ", temporary_added_node_feature[[i]][1], sep="")
+              }
+            }
+            updateLog(paste("Node added: ", paste(temp_log, collapse=""), sep=""))
+           
             # update amount of nodes for Sliding bar
             max_nodes = length(nodelist_table[[1]])
             updateSliderInput(session, "slider", max=max_nodes)
@@ -1589,6 +1636,10 @@ server <- function(input, output, session) {
   
   # on button click "undo" - revert the last user modification action ----------------------------------
   observeEvent(input$undo, {
+    # update log about selected dataset
+    updateLog(paste("The following action was undone: ", modification_history[nrow(modification_history), 2]," ", modification_history[nrow(modification_history), 1], sep=""))
+    
+    # check what modification was done last
     if (modification_history[nrow(modification_history), 1] == "deleted" && modification_history[nrow(modification_history), 2] == "node") {
       undo_node_deletion()
     } else if (modification_history[nrow(modification_history), 1] == "deleted" && modification_history[nrow(modification_history), 2] == "edge") {
@@ -1602,7 +1653,6 @@ server <- function(input, output, session) {
     # update amount of nodes for Sliding bar
     max_nodes = length(nodelist_table[[1]])
     updateSliderInput(session, "slider", max=max_nodes)
-    
   })
   
   
@@ -1985,8 +2035,9 @@ server <- function(input, output, session) {
   ######### Color nodes ############
   ##################################
   
+  
   # calculate the different legends and color the nodes everytime one of these events takes place
-  calculate_legend_and_color_nodes <- eventReactive(c(input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo),{
+  calculate_legend_and_color_nodes <- function(){
     ## "one color (default)"
     if(input$color_nodes == "one color (default)"){
       colors_and_borders <- get_default_colors_and_border(small_nodelist_for_graph)
@@ -2085,8 +2136,12 @@ server <- function(input, output, session) {
           visUpdateNodes(nodes = colors_and_borders[["Nodes"]])
       }
     }
-  })
+  }
   
+  # only calculate new legend in these cases 
+  observeEvent(c(input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo, input$slider, input$radio),{
+    calculate_legend_and_color_nodes()
+  })
   
   # render the legend and update vis with color
   output$legend <- renderPlot({
@@ -2125,6 +2180,12 @@ server <- function(input, output, session) {
     stop_for_status(r)
     values <- as.numeric(fromJSON(content(r, type = "text"), flatten = TRUE))
     
+    # update log about gnn conf matrix
+    updateLog(paste("GNN TN: ", values[1], ", FP: ", values[2], ", FN: ", values[3], ", TP: ", values[4], sep=""))
+    # update log about gnn sens, spec
+    updateLog(paste("GNN Sensitivity: ", values[5], "%, Specificity: ", values[6], "%", sep=""))
+    
+    # plot conf matrix
     TClass <- factor(c("False", "False", "True", "True"))
     PClass <- factor(c("False", "True", "False", "True"))
     Color  <- factor(c(0,1,1,0))
@@ -2213,7 +2274,7 @@ server <- function(input, output, session) {
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     ### create sub node table ###
-    
+   
     # sort nodelist by XAI values (method is selected by radiobutton)
     if(sorting){
       if(input$radio == "rel_pos_highlow"){
@@ -2309,11 +2370,32 @@ server <- function(input, output, session) {
     content = function(file) {
       write.csv(nodelist_table, "modified_nodelist.csv", row.names = FALSE)
       write.csv(edgelist_table, "modified_edgelist.csv", row.names = FALSE)
-      files <- c("modified_nodelist.csv", "modified_edgelist.csv")
+      writeLines(logval$logOutput, "logFile.txt")
+      files <- c("modified_nodelist.csv", "modified_edgelist.csv", "logFile.txt")
+      
       # create the zip file
       zip(file, files)
     },
     contentType = "application/zip"
   )
+  
+  ##########################
+  ####### Log File #########
+  ##########################
+  
+  # initialize log output 
+  logval <- reactiveValues(
+    logOutput = "Log File \n"
+  )
+  
+  # update shown log everytime logOutput changes
+  output$log <- renderText({logval$logOutput})
+  
+  # function to add something to logOutput 
+  updateLog <- function(text){
+    logval$logOutput <- paste(logval$logOutput, text, sep = "\n")
+  }
+  
 }
 
+  
