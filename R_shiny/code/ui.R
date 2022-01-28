@@ -201,17 +201,17 @@ ui <- fluidPage(
                       column(12,
                              fluidRow(
                                column(12,
-                                      conditionalPanel(condition = "input.radio_input_type == 'pytorch_data'",
-                                                       wellPanel(
-                                                         selectizeInput("choose_patient", h4("Select patient to see their graph:"), 
-                                                                        choices = c())
-                                                       )
-                                      ),
-                                      conditionalPanel(condition = "input.radio_input_type == 'own_data'",
-                                                       wellPanel(
-                                                         selectizeInput("choose_patient_own_data", h4("Select patient to see their graph:"), 
-                                                                        choices = c())
-                                                       )
+                                      wellPanel(
+                                        conditionalPanel(condition = "input.radio_input_type == 'pytorch_data'",
+                                                           selectizeInput("choose_patient", h4("Select patient to see their graph:"), 
+                                                                          choices = c())
+                                        ),
+                                        conditionalPanel(condition = "input.radio_input_type == 'own_data'",
+                                                           selectizeInput("choose_patient_own_data", h4("Select patient to see their graph:"), 
+                                                                          choices = c())
+                                        ),
+                                        # placeholder for warning messages
+                                        htmlOutput("warning_deletion")
                                       )
                                )
                              )

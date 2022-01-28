@@ -582,6 +582,12 @@ server <- function(input, output, session) {
     
     # enable restore button
     shinyjs::enable("restore")
+    
+    # remove warning message about changes being removed when switching patients
+    output$warning_deletion <- renderUI({
+      HTML(" ")
+    })
+    
   })
   
   ############################
@@ -623,6 +629,11 @@ server <- function(input, output, session) {
     
     # enable restore button
     shinyjs::enable("restore")
+    
+    # remove warning message about changes being removed when switching patients
+    output$warning_deletion <- renderUI({
+      HTML(" ")
+    })
   })
   
 
@@ -807,7 +818,7 @@ server <- function(input, output, session) {
     
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
-    if(nrow(small_nodelist_for_table) != 0){
+    if(nrow(small_nodelist_for_table) > 1){
       shinyjs::enable("confirm_node_deletion")
     }
     
@@ -1012,8 +1023,15 @@ server <- function(input, output, session) {
     })
     
     Sys.sleep(0.5)
-    if(nrow(small_nodelist_for_table) != 0){
+    #print(small_nodelist_for_table)
+    if(nrow(small_nodelist_for_table) > 1){
          shinyjs::enable("confirm_node_deletion")
+    }
+    # show warning for user
+    if(nrow(modification_history)>1){
+      output$warning_deletion <- renderUI({
+        HTML("<span style='color:red; font-size:14px'> <br/> Warning: If you choose a different patient now, all your modifications will be lost. Please save your modifications by either pressing predict or retrain. </span>")
+      })
     }
   })
   
@@ -1120,6 +1138,12 @@ server <- function(input, output, session) {
     Sys.sleep(0.5)
     if(nrow(small_edgelist) != 0){
       shinyjs::enable("confirm_edge_deletion")
+    }
+    # show warning for user
+    if(nrow(modification_history)>1){
+      output$warning_deletion <- renderUI({
+        HTML("<span style='color:red; font-size:14px'> <br/> Warning: If you choose a different patient now, all your modifications will be lost. Please save your modifications by either pressing predict or retrain. </span>")
+      })
     }
   })
   
@@ -1360,6 +1384,12 @@ server <- function(input, output, session) {
         }
         # enable enter of values again (it may have been turned off after enter all feature values)
         shinyjs::enable("confirm_edgeFeature_value")
+        # show warning for user
+        if(nrow(modification_history)>1){
+          output$warning_deletion <- renderUI({
+            HTML("<span style='color:red; font-size:14px'> <br/> Warning: If you choose a different patient now, all your modifications will be lost. Please save your modifications by either pressing predict or retrain. </span>")
+          })
+        }
       }
     }
   })
@@ -1589,6 +1619,12 @@ server <- function(input, output, session) {
             
             # enable enter of values again (it may have been turned off after enter all feature values)
             shinyjs::enable("confirm_nodeFeature_value")
+            # show warning for user
+            if(nrow(modification_history)>1){
+              output$warning_deletion <- renderUI({
+                HTML("<span style='color:red; font-size:14px'> <br/> Warning: If you choose a different patient now, all your modifications will be lost. Please save your modifications by either pressing predict or retrain. </span>")
+              })
+            }
             
           } else {
             # error message when a feature value is entered and requires to press "enter" first
@@ -1640,9 +1676,13 @@ server <- function(input, output, session) {
   ##################################
   
   # disable undo-button when modification_history is empty, enable undo-button when there are actions to reverse ----------------------------------
-  observeEvent(c(input$undo, input$upload_edges, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$predict, input$retrain), {
+  observeEvent(c(input$undo, input$upload_edges, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$predict, input$retrain, input$choose_patient), {
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
+      # remove warning message about changes being removed when switching patients
+      output$warning_deletion <- renderUI({
+        HTML(" ")
+      })
     } else {
       shinyjs::enable("undo")
     }
@@ -1758,7 +1798,7 @@ server <- function(input, output, session) {
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
     
-    if(nrow(small_nodelist_for_table) != 0){
+    if(nrow(small_nodelist_for_table) > 1){
       shinyjs::enable("confirm_node_deletion")
     }
   }
