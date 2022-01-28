@@ -536,9 +536,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # disable selection of uploading own dataset
-  shinyjs::disable("radio_input_type")
-  
   # disable restore button
   shinyjs::disable("restore")
   
@@ -565,7 +562,7 @@ server <- function(input, output, session) {
       graph_idx <<- graph_idx +1
       
       # send modifications to API
-      #post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
+      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
     }
     
     
@@ -613,7 +610,7 @@ server <- function(input, output, session) {
       graph_idx <<- graph_idx +1
       
       # send modifications to API
-      #post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
+      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
     }
     
     # get retrained graph values

@@ -313,16 +313,16 @@ get_default_colors_and_border <- function(nodelist){
 
 post_modifications <- function(pat_id, graph_idx, modification_history,all_deleted_nodes,all_added_nodes,all_deleted_edges,all_added_edges, all_deleted_nodes_edges){
   # get amounts of rows in dataframes with saved ids
-  counter_deleted_nodes <- nrow(all_deleted_nodes)
-  counter_added_nodes <- nrow(all_added_nodes)
-  counter_deleted_edges <- nrow(all_deleted_edges)
-  counter_added_edges <-nrow(all_added_edges)
+  counter_deleted_nodes <- 1
+  counter_added_nodes <- 1
+  counter_deleted_edges <- 1
+  counter_added_edges <-1
   
   # first row is initialized with 0, so we need at least 2 rows
   if(nrow(modification_history) > 1){
     
     # iterate over all modifications
-    for(i in rev(2:nrow(modification_history))){
+    for(i in 2:nrow(modification_history)){
       action <- modification_history[i,1]
       element <- modification_history[i,2]
       # get id of deleted node
@@ -331,22 +331,21 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
         del_edges <- all_deleted_nodes_edges[[counter_deleted_nodes]]
         # if there are edges to delete, delete them. otherwise do nothing
         if(nrow(del_edges) > 0){
-          for(i in 1:nrow(del_edges)){
-            r <- DELETE(paste(api_path, "/graph_delete_edge",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, edge_index_left = del_edges[["from"]][i], edge_index_right = del_edges[["to"]][i]))
+          for(k in 1:nrow(del_edges)){
+            r <- DELETE(paste(api_path, "/graph_delete_edge",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, edge_index_left = del_edges[["from"]][k], edge_index_right = del_edges[["to"]][k]))
             stop_for_status(r)
           }
         }
         # after edges are deleted, delete node
         r <- DELETE(paste(api_path, "/graph_delete_node",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, deleted_node_id = all_deleted_nodes[["id"]][counter_deleted_nodes]))
         stop_for_status(r)
-        
-        counter_deleted_nodes = counter_deleted_nodes - 1
+        counter_deleted_nodes = counter_deleted_nodes + 1
       }
       # get id of deleted edge
       if(action == "deleted" & element == "edge"){
         r <- DELETE(paste(api_path, "/graph_delete_edge",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, edge_index_left = all_deleted_edges[["from"]][counter_deleted_edges], edge_index_right = all_deleted_edges[["to"]][counter_deleted_edges]))
         stop_for_status(r)
-        counter_deleted_edges = counter_deleted_edges - 1
+        counter_deleted_edges = counter_deleted_edges + 1
       }
       # get id label and values of added node
       if(action == "added" & element == "node"){
@@ -356,8 +355,7 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
         r <- POST(paste(api_path, "/add_node_json",sep=""), body = body, encode = "json")
         # throw error if status returns something else than 200 (so if it didnt work)
         stop_for_status(r)
-        
-        counter_added_nodes = counter_added_nodes - 1
+        counter_added_nodes = counter_added_nodes + 1
       }
       # get id, label and values of added edge
       if(action == "added" & element == "edge"){
@@ -367,8 +365,7 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
         r <- POST(paste(api_path, "/add_edge_json",sep=""), body = body, encode = "json")
         # throw error if status returns something else than 200 (so if it didnt work)
         stop_for_status(r)
-        
-        counter_added_edges = counter_added_edges - 1
+        counter_added_edges = counter_added_edges + 1
       }
       
   
