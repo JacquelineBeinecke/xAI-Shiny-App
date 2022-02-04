@@ -673,6 +673,11 @@ server <- function(input, output, session) {
     edge_features <- edge_features_list
     feature_names <- colnames(edge_features)
     updateSelectizeInput(session, "choose_edge_feature", choices = feature_names, server = TRUE)
+    
+    #if there are no edge features disable enter button
+    if(ncol(edge_features_list)==0){
+      shinyjs::disable("confirm_edgeFeature_value")
+    }
   })
   
   

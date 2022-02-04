@@ -44,13 +44,13 @@ load_graph_from_json <- function(json_graph){
   
   nodelist <- as.data.frame(graph_df$data[[1]])
   colnames(nodelist) <- graph_df$columns[[1]]
-  
+  #nodelist <- read.csv("D:\\Downloads\\kirc_random_nodes_ui_format_0.csv")
   # order data frame by node label from A-Z
   nodelist <- nodelist[order(nodelist$label), ]
   
   # initialize global variables for API / download
   nodelist_table <<- nodelist
-  
+
   # initialize global variables for node addition
   # vector, containing all names of node features, including rel_pos and rel_pos_neg
   node_features_list <<- nodelist_table[, c(3:ncol(nodelist_table))]
@@ -65,7 +65,7 @@ load_graph_from_json <- function(json_graph){
   
   edgelist <- as.data.frame(graph_df$data[[2]])
   colnames(edgelist) <- graph_df$columns[[2]]
-  
+  #edgelist <- read.csv("D:\\Downloads\\kirc_random_egdes_ui_format_0.csv")
   # order data frame from A-Z
   edgelist <- edgelist[order(edgelist$from), ]
   
@@ -74,12 +74,18 @@ load_graph_from_json <- function(json_graph){
   
   # initialize global variables for edge addition
   # vector, containing all names of edge features, including rel_pos and rel_pos_neg
-  edge_features_list <<- subset(edgelist_table, select = -c(1:3))
-  # all columns of edgelist but with only one row that is initialized with placeholder and zeros for adding an edge
-  temporary_added_edge_feature <<- edgelist_table[0, ]
-  temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
-  temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
-  
+  if(ncol(edgelist_table)>3){
+    edge_features_list <<- subset(edgelist_table, select = -c(1:3))
+    
+    # all columns of edgelist but with only one row that is initialized with placeholder and zeros for adding an edge
+    temporary_added_edge_feature <<- edgelist_table[0, ]
+    temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
+    temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
+  }else{
+    # just create empty lists if there are no edge features
+    #edge_features_list <<- list()
+    #temporary_added_edge_feature <<- list()
+  }
   
   #################################
   ### init modification history ###
@@ -316,7 +322,7 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
   counter_added_nodes <- 1
   counter_deleted_edges <- 1
   counter_added_edges <-1
-  
+  print(all_deleted_nodes)
   # first row is initialized with 0, so we need at least 2 rows
   if(nrow(modification_history) > 1){
     
@@ -336,7 +342,7 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
           }
         }
         # after edges are deleted, delete node
-        r <- DELETE(paste(api_path, "/graph_delete_node",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, deleted_node_id = all_deleted_nodes[["id"]][counter_deleted_nodes]))
+        r <- DELETE(paste(api_path, "/graph_delete_node",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, deleted_node_id = all_deleted_nodes[["id"]][counter_deleted_nodes], deleted_node_label = all_deleted_nodes[["label"]][counter_deleted_nodes]))
         stop_for_status(r)
         counter_deleted_nodes = counter_deleted_nodes + 1
       }
