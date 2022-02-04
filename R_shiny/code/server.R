@@ -167,7 +167,7 @@ server <- function(input, output, session) {
               
               # update max Slider value to amount of nodes
               max = length(nodelist_table[[1]])
-              updateSliderInput(session, "slider", max=max)
+              updateSliderInput(session, "slider", max=max, step=1)
               
               # disable third tab
               shinyjs::js$disableTab("Interact")
@@ -456,7 +456,7 @@ server <- function(input, output, session) {
      
      # update max Slider value to amount of nodes
      max = length(nodelist_table[[1]])
-     updateSliderInput(session, "slider", max=max)
+     updateSliderInput(session, "slider", max=max, step=1)
   
      # clear any printed error messages on the UI
      output$info_change <- renderUI({
@@ -595,6 +595,7 @@ server <- function(input, output, session) {
     # update log about selected patient
     updateLog("Predicting on GNN")
     
+    
     # get patient id
     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
     
@@ -645,9 +646,7 @@ server <- function(input, output, session) {
     input$upload_edges,
     input$slider,
     input$radio,
-    input$choose_patient,
-    input$retrain,
-    input$predict
+    input$choose_patient
     ), {
     
     # create graph element
@@ -728,7 +727,7 @@ server <- function(input, output, session) {
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
-    updateSliderInput(session, "slider", max=max)
+    updateSliderInput(session, "slider", max=max, value=1, step=1)
     
     # clear any printed error messages on the UI
     output$info_change <- renderUI({
@@ -772,12 +771,13 @@ server <- function(input, output, session) {
   ##################################
   
   # Initialize first dropdown of modification options ----------------------------------
-  observeEvent(ignoreInit = T,{
-    input$upload_edges
-    input$choose_patient
-    input$radio
-    input$slider
-    }, {
+  observeEvent(ignoreInit = T,c(
+    input$upload_edges,
+    input$choose_patient,
+    input$radio,
+    input$slider,
+    input$restore
+    ), {
     #this makes sure that the smaller dataset gets calculated before the initialization of dropdowns
     calculate_smaller_node_and_edge_list()
      
@@ -788,6 +788,12 @@ server <- function(input, output, session) {
     
     # input for node deletion
     updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
+    
+    # disable delete button if only one node is in table
+    
+    if(length(node_labels)<=1){
+      shinyjs::disable("confirm_node_deletion")
+    }
     
     # first input for edge addition
     nodes_that_can_be_connected <- c()
@@ -957,7 +963,7 @@ server <- function(input, output, session) {
 
     # update amount of nodes for Sliding bar
     max_nodes = length(nodelist_table[[1]])
-    updateSliderInput(session, "slider", max=max_nodes)
+    updateSliderInput(session, "slider", max=max_nodes, step=1)
     
     # update tooltip information of nodes, as their degree has changed
     update_nodes_graph <- small_nodelist_for_graph
@@ -1551,7 +1557,7 @@ server <- function(input, output, session) {
            
             # update amount of nodes for Sliding bar
             max_nodes = length(nodelist_table[[1]])
-            updateSliderInput(session, "slider", max=max_nodes)
+            updateSliderInput(session, "slider", max=max_nodes, step=1)
             
             # update input selection for node deletion
             node_labels <- sort(small_nodelist_for_table$label)
@@ -1704,7 +1710,7 @@ server <- function(input, output, session) {
     
     # update amount of nodes for Sliding bar
     max_nodes = length(nodelist_table[[1]])
-    updateSliderInput(session, "slider", max=max_nodes)
+    updateSliderInput(session, "slider", max=max_nodes, step=1)
   })
   
   

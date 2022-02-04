@@ -230,7 +230,7 @@ ui <- fluidPage(
                                       #default max is 100 but this gets updated as soon as node and edge data are uploaded
                                       #then the max value will always be the amount of nodes in the data
                                       sliderInput("slider", label = HTML("<h3>","<p style='line-height:60%'>","Select how many nodes to display","</p></h3>", "<h5>","(their next neighbours will also be displayed in the graph)","</h5>"), 
-                                                  min = 1, max = 100, value = 3, width = "500px") 
+                                                  min = 1, max = 100, value = 1, width = "500px", step=1) 
                                       
                                ),
                                column(5, align = "center",
