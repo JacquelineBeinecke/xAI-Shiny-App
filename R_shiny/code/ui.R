@@ -337,9 +337,7 @@ ui <- fluidPage(
                                                                   htmlOutput("error_add_edge")
                                                            )
                                                          ),
-                                                         br(),
-                                                         br(),
-                                                         tags$p("Hint: After adding the edge, its attribute values can't be changed!", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
+                                                         htmlOutput("hint_adding_edge"),
                                                          actionButton("confirm_edge_addition", "Add Edge", class = "btn-primary"),
                                                          actionButton("cancel_edge_addition", "Cancel"),
                                                        )

@@ -82,9 +82,8 @@ load_graph_from_json <- function(json_graph){
     temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
     temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
   }else{
-    # just create empty lists if there are no edge features
-    #edge_features_list <<- list()
-    #temporary_added_edge_feature <<- list()
+    temporary_added_edge_feature <<- edgelist_table[0, ]
+    temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value")
   }
   
   #################################
@@ -122,16 +121,34 @@ update_shown_node_table <- function(new_node_table){
 ## nodelist_table: complete nodelist_table (needed to get label of nodes)
 update_shown_edge_table <- function(new_edge_table, nodelist_table){
   table <- new_edge_table
-  
-  # replace ids with labels for showing in the table
-  for(idx in 1:nrow(table)){
-    table$from[idx] <- nodelist_table$label[which(nodelist_table$id==table$from[idx])]
-    table$to[idx] <- nodelist_table$label[which(nodelist_table$id==table$to[idx])]
+ 
+  if(ncol(table)>3){
+    if(nrow(table)>0){
+      # replace ids with labels for showing in the table
+      for(idx in 1:nrow(table)){
+        table$from[idx] <- nodelist_table$label[which(nodelist_table$id==table$from[idx])]
+        table$to[idx] <- nodelist_table$label[which(nodelist_table$id==table$to[idx])]
+      }
+      
+      # sort by  label and remove all ID columns for vis
+      table <- table[order(table$from), ]
+      table <- table[, c(1, 2, 4:ncol(table))]
+    }
+  }else{
+    if(nrow(table)>0){
+      # replace ids with labels for showing in the table
+      for(idx in 1:nrow(table)){
+        table$from[idx] <- nodelist_table$label[which(nodelist_table$id==table$from[idx])]
+        table$to[idx] <- nodelist_table$label[which(nodelist_table$id==table$to[idx])]
+      }
+      
+      # sort by  label and remove all ID columns for vis
+      table <- table[order(table$from), ]
+      table <- table[, c(1, 2)]
+    }else{
+      table <- table[, c(1, 2)]
+    }
   }
-  
-  # sort by from label and remove all ID columns for vis
-  table <- table[order(table$from), ]
-  table <- table[, c(1, 2, 4:ncol(table))]
   
   datatable(
     table,
@@ -322,7 +339,7 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
   counter_added_nodes <- 1
   counter_deleted_edges <- 1
   counter_added_edges <-1
-  print(all_deleted_nodes)
+  
   # first row is initialized with 0, so we need at least 2 rows
   if(nrow(modification_history) > 1){
     

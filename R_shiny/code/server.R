@@ -472,7 +472,7 @@ server <- function(input, output, session) {
     
     # update log about selected patient
     updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
-    print(graph_idx)
+    
     # restore patient graph
     r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
     stop_for_status(r)
@@ -783,7 +783,7 @@ server <- function(input, output, session) {
     })
     
     Sys.sleep(0.5)
-    #print(small_nodelist_for_table)
+    
     if(nrow(small_nodelist_for_table) > 1){
          shinyjs::enable("confirm_node_deletion")
     }
@@ -946,7 +946,7 @@ server <- function(input, output, session) {
       
       # clear numeric input, after an edge value was entered
       updateNumericInput(session, "edgefeature_value", value = 0)
-      print(length(feature_names))
+      
       # disable enter button if there are no more features to add values for
       if(length(feature_names)==0){
         shinyjs::disable("confirm_edgeFeature_value")
@@ -987,8 +987,13 @@ server <- function(input, output, session) {
         output$error_add_edge <- renderUI({
           HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Entered attribute value has not been saved yet. Press ENTER to save the value or remove the value to initialize with 0! </span>")
         })
-      } else {
         
+        shinyjs::enable("confirm_edge_addition")
+        
+        # enable enter of values again (it may have been turned off after enter all feature values)
+        shinyjs::enable("confirm_edgeFeature_value")
+      
+      } else {
         # connect user entries for edge attributes with the selected nodes and its id
         temporary_added_edge_feature$from[1] <<- id_first_node
         temporary_added_edge_feature$to[1] <<- id_second_node
@@ -1013,7 +1018,7 @@ server <- function(input, output, session) {
           }
         }
         updateLog(paste("Edge added: ", paste(temp_log, collapse=""), sep=""))
-        
+       
         # add tooltip information for the new edge (from-to, rel_pos, rel_pos_neg)
         added_edge <- temporary_added_edge_feature
         added_edge$title <- update_edge_tooltip(nodelist_table, added_edge)
@@ -1021,7 +1026,7 @@ server <- function(input, output, session) {
         # update tooltip information of nodes, as their degree has changed
         update_nodes <- small_nodelist_for_graph[which(small_nodelist_for_graph$id == id_first_node | small_nodelist_for_graph$id == id_second_node), ]
         update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
-
+      
         # update graph
         visNetworkProxy("graph") %>%
           visUpdateNodes(nodes = update_nodes) %>%
@@ -1032,10 +1037,17 @@ server <- function(input, output, session) {
         updateNumericInput(session, "edgefeature_value", value = 0)
         
         # reset temporary variables to initial state (ready for next edge addition)
-        temporary_added_edge_feature <<- edgelist_table[0, ]
-        temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
-        temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
-        edge_features_list <<- subset(edgelist_table, select = -c(1:3))
+        if(ncol(edgelist_table)>3){
+          edge_features_list <<- subset(edgelist_table, select = -c(1:3))
+          
+          # all columns of edgelist but with only one row that is initialized with placeholder and zeros for adding an edge
+          temporary_added_edge_feature <<- edgelist_table[0, ]
+          temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
+          temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
+        }else{
+          temporary_added_edge_feature <<- edgelist_table[0, ]
+          temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value")
+        }
         
         # selection list of edge features needs to contain all attributes again
         edge_features <- subset(edgelist_table, select = -c(1:3))
@@ -2088,7 +2100,7 @@ server <- function(input, output, session) {
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     ### create sub node table ###
-   
+    
     # sort nodelist by XAI values (method is selected by radiobutton)
     if(sorting){
       if(input$radio == "rel_pos_highlow"){
@@ -2143,22 +2155,25 @@ server <- function(input, output, session) {
     
     # vector to save the rows that contain a node we want
     rows <- c()
+    
     # iterate over our nodes
     for(ids in nodelist_for_table$id){
-      # check if there is a entry in edgelist$from
+      # check if there is an entry in edgelist$from
       if(length(which(edgelist$from == ids)) > 0){
         rows <- append(rows, which(edgelist$from == ids))
       }
-      # check if there is a entry in edgelist$to
+      # check if there is an entry in edgelist$to
       if(length(which(edgelist$to == ids)) > 0){
         rows <- append(rows, which(edgelist$to == ids))
       }               
     }
+    
     # some rows could have been counted double so only save unique values
     rows <- unique(rows) 
+    
     # select rows
     edgelist <- edgelist[rows,]
-  
+    
     # save in global variable
     small_edgelist <<- edgelist
     
@@ -2169,8 +2184,22 @@ server <- function(input, output, session) {
     output$edge_feature_overview <- renderDataTable({
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
+    
+    output$hint_adding_edge <- renderUI({
+      HTML(" ")
+    })
+    
+    if(ncol(edgelist)<=3){
+      shinyjs::hide("choose_edge_feature")
+      shinyjs::hide("edgefeature_value")
+      shinyjs::hide("confirm_edgeFeature_value")
+      shinyjs::hide("hint_adding_edge")
+    }else{
+      output$hint_adding_edge <- renderUI({
+        HTML("<span style='color:dimgray; font-size:14px; font-style:italic'> Hint: After adding the edge, its attribute values can't be changed! </span>")
+      })
     }
-  )
+  })
   
   ##################################
   ####### Download Results #########
