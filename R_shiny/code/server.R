@@ -36,374 +36,8 @@ server <- function(input, output, session) {
   # global variable that indexes the graphs (this always get +1 if predict or retrain is pressed)
   graph_idx <<- 0
   
-  
-  ##################################
-  ######### upload nodes ###########
-  ##################################
-  
-  # expand capacity of shiny upload to 30 MB
-  options(shiny.maxRequestSize = 30 * 1024^2)
-  
-  
-  # information on required structure for the nodelist ----------------------------------
-  info_table_nodes <- data.frame('labels' = c("Unique name for each node"), 'id' = c("id of the node"), 'Optional: rel_pos' = c("xAI method computing only positive relevance values"), 'Optional: rel_pos_neg' = c("xAI method computing positive and negative relevance values"), 'Optional...' = c("Additional columns with node attributes (numeric)"))
-  output$required_structure_nodelist <- renderTable({
-    info_table_nodes
-  })
-  
-  # validity checks on input file, containing data on nodes ----------------------------------
-  # @return input file named nodelist in case the validity checks are successful, otherwise in case of an error return NULL
-  uploading_nodes <- eventReactive(input$upload_nodes, {
-    
-    # read user input
-    nodelist <- read.csv(input$upload_nodes$datapath)
-    
-    # check 1: containing required columns
-    if (!("label" %in% colnames(nodelist)) || !("id" %in% colnames(nodelist))) {
-      output$error_upload_nodes <- renderUI({
-        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Required column(s) missing. Make sure that your data contains columns named 'label', 'id'! </span>")
-      })
-      
-      # disable third tab
-      shinyjs::js$disableTab("Interact")
-      
-      return(NULL)
-    } else {
-      
-      # check 2: bring columns in the correct order, drop = FALSE ensures that if only one column remains, the data frame is still a data frame
-        remove_columns <- c("label", "id", colnames(nodelist)[which(colnames(nodelist) %in% c("rel_pos", "rel_pos_neg"))])
-        nodelist_only_features <- nodelist[, !names(nodelist) %in% remove_columns, drop = FALSE]
-        target_column_order <- c(remove_columns, colnames(nodelist_only_features))
-        nodelist <- nodelist[, target_column_order]
-      
-      
-      
-      # check 3a: unique label
-      if (length(unique(nodelist$label)) != nrow(nodelist)) {
-        output$error_upload_nodes <- renderUI({
-          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The column 'label' contains duplicates. Make sure that its data points are unique! </span>")
-        })
-        
-        # disable third tab
-        shinyjs::js$disableTab("Interact")
-        
-        return(NULL)
-      } else {
-        
-        # check 3b: unique id
-        if (length(unique(nodelist$id)) != nrow(nodelist)) {
-          output$error_upload_nodes <- renderUI({
-            HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The column 'id' contains duplicates. Make sure that its data points are unique! </span>")
-          })
-          
-          # disable third tab
-          shinyjs::js$disableTab("Interact")
-          
-          return(NULL)
-        } else {
-          
-          # check 4: all node attributes require numeric values
-          if (!is.numeric(unlist(nodelist[, !names(nodelist) %in% remove_columns], use.names = FALSE))) {
-            output$error_upload_nodes <- renderUI({
-              HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Wrong data format of the feature values. Make sure that column(s) of node attributes only contain numeric values! </span>")
-            })
-            
-            # disable third tab
-            shinyjs::js$disableTab("Interact")
-            
-            return(NULL)
-          } else {
-            
-            # check 5: rel_pos should only contain values >= 0
-            if("rel_pos" %in% colnames(nodelist)){
-              for (index in 1:nrow(nodelist)) {
-                if (nodelist$rel_pos[index] < 0) {
-                  output$error_upload_nodes <- renderUI({
-                    HTML("<span style='color:red; font-size:14px'> <br/> ERROR: In the column 'rel_pos' are negative values. Make sure that it only contains values greater than or equal to zero! </span>")
-                  })
-                  
-                  # disable third tab
-                  shinyjs::js$disableTab("Interact")
-                  
-                  return(NULL)
-                }
-              }
-            }
-            
-            # check 6: the graph must be homogeneous, all nodes of the same type
-            if (anyNA.data.frame(nodelist)) {
-              output$error_upload_nodes <- renderUI({
-                HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The graph has nodes of different types. You must enter a homogeneous graph with all nodes of the same type! </span>")
-              })
-              
-              # disable third tab
-              shinyjs::js$disableTab("Interact")
-              
-              return(NULL)
-            } else {
-              
-              # inform user that upload was successful
-              output$error_upload_nodes <- renderUI({
-                HTML(paste0("<p style = 'color:green; font-size:14px'>", "Upload successful.", br(), "The data contains ", "<b>", nrow(nodelist), " nodes", "</b>", " and ", "<b>", ncol(nodelist) - 4, " attribute(s)", "</b>", ".", "</p>"))
-              })
-              
-              # order data frame by node label from A-Z
-              nodelist <- nodelist[order(nodelist$label), ]
-              
-              # initialize global variables for API / download
-              nodelist_table <<- nodelist
-              
-              # update selection of patients by name
-              names <- colnames(nodelist_table)[!colnames(nodelist_table) %in% c("id", "label", "rel_pos", "rel_pos_neg")]
-              updateSelectizeInput(session, "choose_patient_own_data", choices = names, server = TRUE)
-              
-              # initialize global variables for node addition
-              # vector, containing all names of node features, including rel_pos and rel_pos_neg
-              node_features_list <<- nodelist_table[, c(3:ncol(nodelist_table))]
-              # all columns of nodelist but with only one row that is initialized with placeholder and zeros for relevances / attributes of a new node
-              temporary_added_node_feature <<- nodelist_table[0, ]
-              temporary_added_node_feature[nrow(temporary_added_node_feature) + 1, ] <<- c("label_value", "id_value", rep(0, length(colnames(nodelist_table)) - 2))
-              temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)] <<- as.numeric(temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)])
-              
-              # update max Slider value to amount of nodes
-              max = length(nodelist_table[[1]])
-              updateSliderInput(session, "slider", max=max, step=1)
-              
-              # disable third tab
-              shinyjs::js$disableTab("Interact")
-              
-              return(nodelist)
-            }
-          }
-        }
-      }
-    }
-  })
-  
-  # preview uploaded nodelist in a data table ----------------------------------
-  output$preview_nodes <- renderDataTable({
-    table <- uploading_nodes()
-    datatable(
-      table,
-      rownames = FALSE,
-      extensions = "FixedColumns",
-      options = list(scrollX = TRUE),
-    )
-  })
-  
-  # inform user that data on edges needs to be re-entered if data on nodes has been changed ----------------------------------
-  observeEvent(input$upload_nodes, {
-    if (!is.null(uploading_edges())) {
-      output$error_upload_edges <- renderUI({
-        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The data on nodes has been changed. Re-upload data on edges! </span>")
-      })
-    }
-  })
-  
-  ##################################
-  ######### upload edges ###########
-  ##################################
-  
-  # information on required structure for the edgelist ----------------------------------
-  info_table_edges <- data.frame('from' = c("id of the node"), 'to' = c("id of the connected node"), 'id' = c("id of the edge"), 'Optional: rel_pos' = c("xAI method computing only positive relevance values"), 'Optional: rel_pos_neg' = c("xAI method computing positive and negative relevance values"), 'Optional...' = c("Additional columns with edge attributes (numeric)"))
-  output$required_structure_edgelist <- renderTable({
-    info_table_edges
-  })
-  
-  
-  # reactive expression provides the information of whether nodelist has been uploaded successfully ----------------------------------
-  # @ return "false" as long as uploading_nodes function returns NULL and "true" when nodelist was uploaded
-  output$nodelist_uploaded <- reactive({
-    return(!is.null(uploading_nodes()))
-  })
-  outputOptions(output, "nodelist_uploaded", suspendWhenHidden = FALSE)
-  
-  
-  # validity checks on input file, containing data on edges ----------------------------------
-  # @return input file named edgelist in case the validity checks are successful, otherwise in case of an error return NULL
-  uploading_edges <- eventReactive(input$upload_edges, {
-    # read user input
-    edgelist <- read.csv(input$upload_edges$datapath)
-    
-    # check 1: containing required columns
-    if (!("from" %in% colnames(edgelist)) || !("to" %in% colnames(edgelist)) || !("id" %in% colnames(edgelist))) {
-      output$error_upload_edges <- renderUI({
-        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Required column(s) missing. Make sure that your data contains columns named 'from', 'to', 'id'. </span>")
-      })
-      
-      # disable third tab
-      shinyjs::js$disableTab("Interact")
-      
-      return(NULL)
-    } else {
-      
-      # check 2: bring columns in the correct order, drop = FALSE ensures that if only one column remains, the data frame is still a data frame
-      remove_columns <- c("from", "to", "id", colnames(edgelist)[which(colnames(edgelist) %in% c("rel_pos", "rel_pos_neg"))])
-      edgelist_only_features <- edgelist[, !names(edgelist) %in% remove_columns, drop = FALSE]
-      target_column_order <- c(remove_columns, colnames(edgelist_only_features))
-      edgelist <- edgelist[, target_column_order]
-    
-      # check 3: unique id
-      if (length(unique(edgelist$id)) != nrow(edgelist)) {
-        output$error_upload_edges <- renderUI({
-          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The column 'id' contains duplicates. Make sure that its data points are unique! </span>")
-        })
-        
-        # disable third tab
-        shinyjs::js$disableTab("Interact")
-        
-        return(NULL)
-      } else {
-        
-        # check 4: all edge attributes require numeric values
-        if (!is.numeric(unlist(edgelist[, (length(remove_columns)+1):ncol(edgelist)], use.names = FALSE))) {
-          output$error_upload_edges <- renderUI({
-            HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Wrong data format of the feature values. Make sure that column(s) of edge attributes only contain numeric values! </span>")
-          })
-          # disable third tab
-          shinyjs::js$disableTab("Interact")
-
-          return(NULL)
-        } else {
-          
-          # check 5: rel_pos should only contain values >= 0
-          if("rel_pos" %in% colnames(edgelist)){
-            for (index in 1:nrow(edgelist)) {
-              if (edgelist$rel_pos[index] < 0) {
-                output$error_upload_edges <- renderUI({
-                  HTML("<span style='color:red; font-size:14px'> <br/> ERROR: In the column 'rel_pos' are negative values. Make sure that it only contains values greater than or equal to zero! </span>")
-                })
-                
-                # disable third tab
-                shinyjs::js$disableTab("Interact")
-                
-                return(NULL)
-              }
-            }
-          }
-          
-          # check 6: no multigraph allowed, there should be only one edge between two nodes
-          for (index in 1:nrow(edgelist)) {
-            if (nrow(edgelist[!duplicated(cbind(pmin(edgelist$from, edgelist$to), pmax(edgelist$from, edgelist$to))), ]) != nrow(edgelist)) {
-              output$error_upload_edges <- renderUI({
-                HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Data of a multigraph has been entered. Make sure that there is only one edge between two nodes! </span>")
-              })
-              
-              # disable third tab
-              shinyjs::js$disableTab("Interact")
-              
-              return(NULL)
-            }
-          }
-          
-          # check 7: the edgelist should only contain edges for which a node exists, in this case node ids of edgelist are a subset of node ids in nodelist
-          unique_edgelist_from <- unique(edgelist$from)
-          unique_edgelist_to <- unique(edgelist$to)
-          unique_node_id_edgelist <- unique(c(unique_edgelist_from, unique_edgelist_to))
-          
-          if (!is.subset(unique_node_id_edgelist, nodelist_table$id)) {
-            output$error_upload_edges <- renderUI({
-              HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Some edges refer to a node that is not mentioned in the list of nodes. Make sure that all node ids in 'from' and 'to' appear in the list of nodes (upload 1)! </span>")
-            })
-            
-            # disable third tab
-            shinyjs::js$disableTab("Interact")
-            
-            return(NULL)
-          } else {
-            
-            # check 8: the graph must be homogeneous, all edges of the same type
-            if (anyNA.data.frame(edgelist)) {
-              output$error_upload_edges <- renderUI({
-                HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The graph has edges of different types. You must enter a homogeneous graph with all edges of the same type! </span>")
-              })
-              
-              # disable third tab
-              shinyjs::js$disableTab("Interact")
-              
-              return(NULL)
-            } else {
-              
-              # inform user that edges upload was successful
-              output$error_upload_edges <- renderUI({
-                HTML(paste0("<p style = 'color:green; font-size:14px'>", "Upload successful.", br(), "The data contains ", "<b>", nrow(edgelist), " edges", "</b>", " and ", "<b>", ncol(edgelist) - length(remove_columns), " attribute(s)", "</b>", ".", "</p>"))
-              })
-              
-              # order data frame from A-Z
-              edgelist <- edgelist[order(edgelist$from), ]
-              
-              # initialize global variables for API / download
-              edgelist_table <<- edgelist
-              
-              # initialize global variables for edge addition
-              # vector, containing all names of edge features, including rel_pos and rel_pos_neg
-              edge_features_list <<- subset(edgelist_table, select = -c(1:3))
-              # all columns of edgelist but with only one row that is initialized with placeholder and zeros for adding an edge
-              temporary_added_edge_feature <<- edgelist_table[0, ]
-              temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
-              temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
-              
-              # in case the user uploads new data after some modifications have already been made, global variables for modification actions need to be empty again
-              modification_history <<- data.frame(action = c(0), element = c(0))
-              all_deleted_nodes <<- data.frame()
-              all_deleted_nodes_edges <<- list()
-              all_deleted_edges <<- data.frame()
-              all_added_edges <<- data.frame()
-              all_added_nodes <<- data.frame()
-              
-              # clear any printed error messages on the UI
-              output$info_change <- renderUI({
-                HTML(" ")
-              })
-              
-              output$error_only_zeros <- renderUI({
-                HTML(" ")
-              })
-              
-              output$error_add_node <- renderUI({
-                HTML(" ")
-              })
-              
-              output$error_add_edge <- renderUI({
-                HTML(" ")
-              })
-              
-              # empty all text input fields of edge and node addition
-              updateNumericInput(session, "edgefeature_value", value = 0)
-              updateTextInput(session, "new_node_label", value = "", placeholder = "e.g. ABCC2")
-              updateNumericInput(session, "nodefeature_value", value = 0)
-              
-              # reset the select Input of color nodes by
-              updateSelectInput(session, "color_nodes", selected = "one color (default)")
-              
-              # enable third tab
-              shinyjs::js$enableTab("Interact")
-
-              return(edgelist)
-            }
-          }
-        }
-      }
-    }
-  })
-  
-  # preview uploaded edgelist in data table ----------------------------------
-  output$preview_edges <- renderDataTable({
-    table <- uploading_edges()
-    datatable(
-      table,
-      rownames = FALSE,
-      extensions = "FixedColumns",
-      options = list(scrollX = TRUE),
-    )
-  })
-  
-  # reactive expression provides the information of whether edgelist has been uploaded successfully ----------------------------------
-  # @ return "false" as long as uploading_edges function returns NULL and "true" when edgelist was uploaded
-  output$edgelist_uploaded <- reactive({
-    return(!is.null(uploading_edges()))
-  })
-  outputOptions(output, "edgelist_uploaded", suspendWhenHidden = FALSE)
+  # new graph vis
+  new_graph_vis <- reactiveVal(0)
   
   #######################################
   ######## upload whole dataset #########
@@ -422,29 +56,34 @@ server <- function(input, output, session) {
       # update log about selected dataset
       updateLog(paste("Dataset selected: ", input$choose_a_dataset, sep=""))
       
+      # enable interact tab when dataset is selected
+      shinyjs::js$enableTab("Interact")
   })
   
   # load graph of selected patient
   observeEvent(ignoreInit = TRUE, input$choose_patient, {
-     
+    # write in log that changes were not saved 
+    if(nrow(modification_history)>1){
+      updateLog("Your modifications for this patient were not saved")
+    }
+    
      # get patient id
      pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
      
      # get the amount of modified graphs saved for this patient
-     r <- GET(paste(api_path, "/data/highest_graph_id",sep=""), query = list(patient_id = pat_id))
-     stop_for_status(r)
-     graph_idx <<- as.numeric(fromJSON(content(r, type = "text"), flatten = TRUE))
+     graph_idx <<- get_max_graphs(pat_id)
      
      # update log about selected patient
-     updateLog(paste("Patient selected: ", input$choose_patient, ", Amount of modified graphs: ", graph_idx, sep=""))
+     updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
+     updateLog(paste("Amount of modified graphs for this patient: ", graph_idx, sep=""))
      
      # enable restore button if graph_idx is larger than 0
      if(graph_idx > 0){
        # enable restore button
-       shinyjs::enable("restore")
+       shinyjs::enable("backward")
      }else{
        # disable restore button
-       shinyjs::disable("restore")
+       shinyjs::disable("backward")
      }
      
      # get graph of selected dataset and patient
@@ -493,15 +132,11 @@ server <- function(input, output, session) {
   ######## dis/enable/update tabs/functions #########
   ###################################################
   
-  # initially disable Interact tab by start of the shiny App ----------------------------------
-  observe({
-    if (is.null(input$upload_nodes)) {
-      shinyjs::js$disableTab("Interact")
-    }
-  })
-  
+  # initially disable Interact tab by start of the shiny App 
+  shinyjs::js$disableTab("Interact")
+ 
   # update radio buttons based on if rel_pos_neg or rel_pos is present
-  observeEvent(ignoreInit = T,c(input$upload_edges, input$choose_patient),{
+  observeEvent(ignoreInit = T,input$choose_patient,{
   if(!("rel_pos_neg" %in% colnames(nodelist_table) & !("rel_pos" %in% colnames(nodelist_table)))){
       shinyjs::disable("radio")
       
@@ -536,22 +171,36 @@ server <- function(input, output, session) {
     }
   })
   
-  # disable restore button
-  shinyjs::disable("restore")
+  # disable backward button and forward button
+  shinyjs::disable("backward")
+  shinyjs::disable("forward")
   
   ############################
   ######### Retrain ##########
   ############################
   
   observeEvent(input$retrain, {
-    # update log about Retraining
-    updateLog("Retraining GNN")
+    # disable forward button
+    shinyjs::disable("forward")
     
     # get patient id
     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
     
     # post modification history to API if changes are made
     if(nrow(modification_history)>1){
+      # if a graph that is not the latest graph is changed, deleted all graphs with higher id
+      max_graph <- get_max_graphs(pat_id)
+      if(graph_idx != max_graph){
+        delete_graphs(pat_id, graph_idx, max_graph)
+        if(max_graph-graph_idx > 1){
+          updateLog(paste("The following modified graphs were deleted: ",graph_idx+1,"-", max_graph, sep=""))
+        }else{
+          updateLog(paste("The following modified graph was deleted: ",graph_idx+1, sep=""))
+        }
+      }
+      
+      # update log about selected patient
+      updateLog(paste("Changes saved for patient ", pat_id, " in graph number ", graph_idx+1, sep=""))
       
       # create deepcopy of graph in the backend
       r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
@@ -563,8 +212,16 @@ server <- function(input, output, session) {
       
       # send modifications to API
       post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
+      
+      # enable restore button
+      shinyjs::enable("backward")
+      
+      # update log about selected patient
+      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
     }
     
+    # update log about Retraining
+    updateLog("Retraining GNN")
     
     # get retrained graph values
     r <- GET(paste(api_path, "/nn_retrain",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
@@ -577,11 +234,12 @@ server <- function(input, output, session) {
     
     calculate_smaller_node_and_edge_list()
     
-    # enable restore button
-    shinyjs::enable("restore")
-    
     # remove warning message about changes being removed when switching patients
     output$warning_deletion <- renderUI({
+      HTML(" ")
+    })
+    # remove warning message about graphs being overwritten
+    output$warning_overwriting <- renderUI({
       HTML(" ")
     })
     
@@ -592,15 +250,27 @@ server <- function(input, output, session) {
   ############################
   
   observeEvent(input$predict, {
-    # update log about selected patient
-    updateLog("Predicting on GNN")
-    
+    # disable forward button
+    shinyjs::disable("forward")
     
     # get patient id
     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
     
     # post modification history to API if changes are made
     if(nrow(modification_history)>1){
+      # if a graph that is not the latest graph is changed, deleted all graphs with higher id
+      max_graph <- get_max_graphs(pat_id)
+      if(graph_idx != max_graph){
+        delete_graphs(pat_id, graph_idx, max_graph)
+        if(max_graph-graph_idx > 1){
+          updateLog(paste("The following modified graphs were deleted: ",graph_idx+1,"-", max_graph, sep=""))
+        }else{
+          updateLog(paste("The following modified graph was deleted: ",graph_idx+1, sep=""))
+        }
+      }
+      
+      # update log about selected patient
+      updateLog(paste("Changes saved for patient ", pat_id, " in graph number ", graph_idx+1,sep=""))
       
       # create deepcopy of graph in the backend
       r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
@@ -611,8 +281,17 @@ server <- function(input, output, session) {
       graph_idx <<- graph_idx +1
       
       # send modifications to API
-      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)   
+      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges) 
+      
+      # enable restore button
+      shinyjs::enable("backward")
+      
+      # update log about selected patient
+      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
+      
     }
+    # update log about Predicting
+    updateLog("Predicting on GNN")
     
     # get retrained graph values
     r <- GET(paste(api_path, "/nn_predict",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
@@ -625,11 +304,13 @@ server <- function(input, output, session) {
     
     calculate_smaller_node_and_edge_list()
     
-    # enable restore button
-    shinyjs::enable("restore")
     
     # remove warning message about changes being removed when switching patients
     output$warning_deletion <- renderUI({
+      HTML(" ")
+    })
+    # remove warning message about graphs being overwritten
+    output$warning_overwriting <- renderUI({
       HTML(" ")
     })
   })
@@ -643,12 +324,13 @@ server <- function(input, output, session) {
   # observe upload of edges to update the graph if new data was uploaded ----------------------------------
   observeEvent(c( 
     # the events that trigger this
-    input$upload_edges,
+    input$backward,
+    input$forward,
     input$slider,
     input$radio,
     input$choose_patient
     ), {
-    
+  
     # create graph element
     output$graph <- renderVisNetwork({
       # read data on nodes and edges
@@ -707,19 +389,26 @@ server <- function(input, output, session) {
   
   
   
-  ##################################
-  ######### Restore Graph ##########
-  ##################################
+  ########################################
+  ######### Jump between graphs ##########
+  ########################################
   
-  observeEvent(input$restore, {
-    # update log about selected patient
-    updateLog("Current modified graph deleted and version before restored")
+  observeEvent(input$backward, {
+    if(nrow(modification_history)>1){
+      updateLog("Your modifications for this graph were not saved")
+    }
     
     # get patient id
     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
-
+    
+    # update graph id
+    graph_idx <<- graph_idx - 1
+    
+    # update log about selected patient
+    updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
+    
     # restore patient graph
-    r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx-1))
+    r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
     stop_for_status(r)
     graph <- fromJSON(content(r, type = "text"))
     
@@ -727,7 +416,9 @@ server <- function(input, output, session) {
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
-    updateSliderInput(session, "slider", max=max, value=1, step=1)
+    updateSliderInput(session, "slider", max=max, step=1)
+    
+    calculate_smaller_node_and_edge_list()
     
     # clear any printed error messages on the UI
     output$info_change <- renderUI({
@@ -754,16 +445,84 @@ server <- function(input, output, session) {
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
     
-    calculate_smaller_node_and_edge_list()
-    
-    # delete latest graph, the user will never be able to return to it
-    r <- DELETE(paste(api_path, "/data/graph/",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
-    stop_for_status(r)
-    graph_idx <<- graph_idx - 1
+    # get the amount of modified graphs saved for this patient
+    max_graph <- get_max_graphs(pat_id)
     
     if(graph_idx == 0){
-      shinyjs::disable("restore")
+      shinyjs::disable("backward")
     }
+    
+    # enable forward button
+    shinyjs::enable("forward")
+    
+    # show warning for user
+    output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
+  })
+  
+  observeEvent(input$forward, {
+    if(nrow(modification_history)>1){
+      updateLog("Your modifications for this graph were not saved")
+    }
+    
+    # get patient id
+    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    
+    # update graph id
+    graph_idx <<- graph_idx + 1
+    
+    # update log about selected patient
+    updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
+    print(graph_idx)
+    # restore patient graph
+    r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
+    stop_for_status(r)
+    graph <- fromJSON(content(r, type = "text"))
+    
+    load_graph_from_json(graph)
+    
+    # update max Slider value to amount of nodes
+    max = length(nodelist_table[[1]])
+    updateSliderInput(session, "slider", max=max, step=1)
+    
+    calculate_smaller_node_and_edge_list()
+    
+    # clear any printed error messages on the UI
+    output$info_change <- renderUI({
+      HTML(" ")
+    })
+    
+    output$error_only_zeros <- renderUI({
+      HTML(" ")
+    })
+    
+    output$error_add_node <- renderUI({
+      HTML(" ")
+    })
+    
+    output$error_add_edge <- renderUI({
+      HTML(" ")
+    })
+    
+    # empty all text input fields of edge and node addition
+    updateNumericInput(session, "edgefeature_value", value = 0)
+    updateTextInput(session, "new_node_label", value = "", placeholder = "e.g. ABCC2")
+    updateNumericInput(session, "nodefeature_value", value = 0)
+    
+    # reset the select Input of color nodes by
+    updateSelectInput(session, "color_nodes", selected = "one color (default)")
+    
+    # get the amount of modified graphs saved for this patient
+    max_graph <- get_max_graphs(pat_id)
+    
+    if(graph_idx == max_graph){
+      shinyjs::disable("forward")
+    }
+    if(graph_idx != 0){
+      shinyjs::enable("backward")
+    }
+    
+    # show warning for user
+    output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
   })
   
   ##################################
@@ -772,11 +531,11 @@ server <- function(input, output, session) {
   
   # Initialize first dropdown of modification options ----------------------------------
   observeEvent(ignoreInit = T,c(
-    input$upload_edges,
     input$choose_patient,
     input$radio,
     input$slider,
-    input$restore
+    input$backward,
+    input$forward
     ), {
     #this makes sure that the smaller dataset gets calculated before the initialization of dropdowns
     calculate_smaller_node_and_edge_list()
@@ -851,7 +610,6 @@ server <- function(input, output, session) {
   
   # Initialize second dropdown of modification options ----------------------------------
   observeEvent(ignoreInit = T,{ # the events that trigger this
-    input$upload_edges 
     input$choose_patient
     input$choose_first_connected_node_delete 
     input$choose_first_connected_node_add
@@ -903,10 +661,7 @@ server <- function(input, output, session) {
   
   
   # initialize dropdown of node attributes for node addition ----------------------------------
-  observeEvent({
-    input$upload_edges
-    input$choose_patient
-    }, {
+  observeEvent(input$choose_patient, {
     node_features <- node_features_list
     feature_names <- colnames(node_features)
     updateSelectizeInput(session, "choose_node_feature", choices = feature_names, server = TRUE)
@@ -914,10 +669,7 @@ server <- function(input, output, session) {
   
   
   # initialize dropdown of edge attributes for edge addition ----------------------------------
-  observeEvent({
-    input$upload_edges
-    input$choose_patient
-  }, {
+  observeEvent(input$choose_patient, {
     edge_features <- edge_features_list
     feature_names <- colnames(edge_features)
     updateSelectizeInput(session, "choose_edge_feature", choices = feature_names, server = TRUE)
@@ -1679,7 +1431,7 @@ server <- function(input, output, session) {
   ##################################
   
   # disable undo-button when modification_history is empty, enable undo-button when there are actions to reverse ----------------------------------
-  observeEvent(c(input$undo, input$upload_edges, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$predict, input$retrain, input$choose_patient), {
+  observeEvent(c(input$undo, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$predict, input$retrain, input$choose_patient), {
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
       # remove warning message about changes being removed when switching patients
@@ -2275,7 +2027,6 @@ server <- function(input, output, session) {
   
   observeEvent(ignoreInit = T,c( 
     # the events that trigger this
-    input$upload_edges,
     input$choose_patient,
     input$slider,
     input$radio
@@ -2328,7 +2079,7 @@ server <- function(input, output, session) {
   # reactive expression that extracts and prepares the current data on nodes and edges ----------------------------------
   # @return list with data.frame of nodes for presenting in a table, 
   #         data.frame of nodes for graph vis, and data.frame of edges for table and graph vis
-  calculate_smaller_node_and_edge_list <- eventReactive(c(input$upload_edges, input$choose_patient, input$slider, input$radio, input$choose_patient_own_data),{ 
+  calculate_smaller_node_and_edge_list <- eventReactive(c(input$choose_patient, input$slider, input$radio, input$choose_patient_own_data, input$backward, input$forward),{ 
     nodelist <- nodelist_table
     edgelist <- edgelist_table
     ### create sub node table ###

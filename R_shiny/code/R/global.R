@@ -222,7 +222,6 @@ get_rel_pos_colors_and_border <- function(nodelist){
   return(all_rel_pos)
 }
 
-
 get_rel_pos_neg_colors_and_border <- function(nodelist){
   nodes <- nodelist
   # define amount of different groups to differentiate by color
@@ -371,4 +370,38 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
   
     }
   }
+}
+
+get_max_graphs <- function(pat_id){
+  r <- GET(paste(api_path, "/data/highest_graph_id",sep=""), query = list(patient_id = pat_id))
+  stop_for_status(r)
+  max_graph <- as.numeric(fromJSON(content(r, type = "text"), flatten = TRUE))
+  
+  return(max_graph)
+}
+
+delete_graphs <- function(pat_id, graph_idx, max_graph){
+  for(i in (graph_idx+1):max_graph){
+    # delete latest graph, the user will never be able to return to it
+    r <- DELETE(paste(api_path, "/data/graph/",sep=""), query = list(patient_id = pat_id, graph_id = i))
+    stop_for_status(r)
+  }
+}
+
+##########################################
+########  function for warning   #########
+##########################################
+
+ovwriting_warning <- function(graph_idx, max_graph){
+  if(graph_idx != max_graph){
+    if(max_graph-graph_idx>1){
+      message <- HTML(paste0("<span style='color:red; font-size:14px'> <br/> Warning: If you perform modifications on this graph and save them by pressing predict/retrain the following graphs well be overwritten: ", graph_idx+1,"-", max_graph ,"</span>"))
+    }else{
+      message <- HTML(paste0("<span style='color:red; font-size:14px'> <br/> Warning: If you perform modifications on this graph and save them by pressing predict/retrain the following graph well be overwritten: ", graph_idx+1,"</span>"))
+    }
+  }else{
+      message <- HTML(" ")
+  }
+  
+  return(message)
 }

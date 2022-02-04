@@ -125,74 +125,16 @@ ui <- fluidPage(
              # TAB 2
              tabPanel("Upload Data",
                       fluidRow(column(12,
-                                      radioButtons("radio_input_type", label = h3("Upload your own data or use a predefined dataset"), 
-                                                   choices = list("Upload your own dataset" = "own_data",
-                                                                  "Choose a predefined dataset" = "pytorch_data"), 
-                                                   selected = "pytorch_data", inline = TRUE), 
-                                      )
-                               ),
-                      
-                      fluidRow(
-                        column(12,
-                               column(6,
-                                      
-                                      # upload data on nodes
-                                      conditionalPanel(condition = "input.radio_input_type == 'own_data'",
-                                        wellPanel(
-                                          tags$h3("Step 1: Upload Data on Nodes"),
-                                          fileInput("upload_nodes", " ", buttonLabel = "Upload..."),
-                                          
-                                          # placeholder for error messages
-                                          htmlOutput("error_upload_nodes")
-                                        ),
-                                        
-                                        # table representing the required data structure. it disappears after the upload was successful
-                                        conditionalPanel(
-                                          condition = "!(output.nodelist_uploaded) && !(input.radio_input_type == 'pytorch_data')",
-                                          tags$h3("The following Structure is mandatory:"),
-                                          tags$p("Hint 1: Network visualizations with more than 200 nodes might get cluttered.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
-                                          tags$p("Hint 2: If you don't have values for 'rel_pos', just enter a column with zeros.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
-                                          tableOutput("required_structure_nodelist")
-                                        ),
-                                        # preview of the uploaded data on nodes
-                                        dataTableOutput("preview_nodes")
-                                      ),
-                               ),
-                               column(6,
-                                      
-                                      # upload data on edges is available after successful upload of nodelist
-                                      conditionalPanel(condition = "output.nodelist_uploaded && !(input.radio_input_type == 'pytorch_data')",
-                                                       wellPanel(
-                                                         tags$h3("Step 2: Upload Data on Edges"),
-                                                         fileInput("upload_edges", " ", buttonLabel = "Upload..."),
-                                                         
-                                                         # placeholder for error messages
-                                                         htmlOutput("error_upload_edges")
-                                                       )
-                                      ),
-                                      # table representing the required data structure. it disappears after the upload was successful
-                                      conditionalPanel(condition = c("output.nodelist_uploaded && !(output.edgelist_uploaded) && !(input.radio_input_type == 'pytorch_data')" ),
-                                                       tags$h3("The following Structure is mandatory:"),
-                                                       tags$p("Hint 1: If you have values for 'rel_pos' or 'rel_pos_neg', just enter a column with name 'rel_pos' or 'rel_pos_neg'.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
-                                                       tableOutput("required_structure_edgelist"),
-                                      ),
-                                      # preview of the uploaded data on edges
-                                      conditionalPanel(condition = "output.nodelist_uploaded && !(input.radio_input_type == 'pytorch_data')",
-                                                       dataTableOutput("preview_edges")
-                                      )
-                               ),
-                               column(6,
                                       # choose predefined datasets 
-                                      conditionalPanel(condition = "input.radio_input_type == 'pytorch_data'",
-                                                       wellPanel(
-                                                         selectizeInput("choose_a_dataset", h4("Select one of the following datasets:"), 
-                                                                        choices = fromJSON(content(GET(paste(api_path,"/data/dataset_name",sep=""),type="basic"),"text"),flatten = TRUE), selected = 1),
-                                                         actionButton("upload_dataset", "Select dataset", class = "btn-primary")
-                                                         )
-                                      ),
+                                      wellPanel(
+                                        selectizeInput("choose_a_dataset", h4("Select one of the following datasets:"),
+                                                       choices = fromJSON(content(GET(paste(api_path,"/data/dataset_name",sep=""),type="basic"),"text"),flatten = TRUE), selected = 1),
+                                        actionButton("upload_dataset", "Select dataset", class = "btn-primary")
+                                        )
+                                     
                                       )
                         )
-                      )
+                      
              ),
              # TAB 3
              
@@ -202,14 +144,9 @@ ui <- fluidPage(
                              fluidRow(
                                column(12,
                                       wellPanel(
-                                        conditionalPanel(condition = "input.radio_input_type == 'pytorch_data'",
-                                                           selectizeInput("choose_patient", h4("Select patient to see their graph:"), 
-                                                                          choices = c())
-                                        ),
-                                        conditionalPanel(condition = "input.radio_input_type == 'own_data'",
-                                                           selectizeInput("choose_patient_own_data", h4("Select patient to see their graph:"), 
-                                                                          choices = c())
-                                        ),
+                                        selectizeInput("choose_patient", h4("Select patient to see their graph:"), 
+                                                       choices = c()
+                                                       ),
                                         # placeholder for warning messages
                                         htmlOutput("warning_deletion")
                                       )
@@ -230,7 +167,7 @@ ui <- fluidPage(
                                       #default max is 100 but this gets updated as soon as node and edge data are uploaded
                                       #then the max value will always be the amount of nodes in the data
                                       sliderInput("slider", label = HTML("<h3>","<p style='line-height:60%'>","Select how many nodes to display","</p></h3>", "<h5>","(their next neighbours will also be displayed in the graph)","</h5>"), 
-                                                  min = 1, max = 100, value = 1, width = "500px", step=1) 
+                                                  min = 1, max = 100, value = 3, width = "500px", step=1) 
                                       
                                ),
                                column(5, align = "center",
@@ -307,12 +244,15 @@ ui <- fluidPage(
                                       wellPanel(
                                         fluidRow(
                                           column(12,
-                                                 tags$div(style = "display:inline-block", title = "Undo modifications. Only enabled when modifications were performed.",
+                                                 tags$div(style = "display:inline-block; width:100px", title = "Undo modifications. Only enabled when modifications were performed.",
                                                           actionButton("undo", "Undo", icon("undo"), class = "btn-primary"),
                                                  ),
-                                                 tags$div(style = "display:inline-block", title = "Restore graph to the state before using predict/retrain. Only enabled until the original graph is restored.",
-                                                          actionButton("restore", "Restore", icon("backward"), class = "btn-primary")
+                                                 tags$div(style = "display:inline-block", title = "Move between graph states saved through predict/retrain.",
+                                                          actionButton("backward", icon("backward"), class = "btn-primary"),
+                                                          actionButton("forward", icon("forward"), class = "btn-primary")
                                                  ),
+                                                 # placeholder for warning messages
+                                                 htmlOutput("warning_overwriting"),
                                                  # modification options
                                                  radioButtons("modify_options", h3("Modify Graph:"),
                                                               choices = list(
