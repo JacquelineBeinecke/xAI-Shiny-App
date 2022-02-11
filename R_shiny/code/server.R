@@ -45,8 +45,14 @@ server <- function(input, output, session) {
   
   # update selectize input for patients
   observeEvent(input$upload_dataset, {
+      # get token for url
+      t <- GET(paste(api_path, "/", sep=""))
+      stop_for_status(t)
+      token <- fromJSON(content(t, type = "text"))
+      api_path <<- paste(api_path, token, sep="/")
+      
       # get list of patient names
-      patient_names <- GET(paste(api_path, "/data/patient_name",sep=""), query = list(dataset_name = input$choose_a_dataset))
+      patient_names <- GET(paste(api_path,"/data/patient_name",sep=""), query = list(dataset_name = input$choose_a_dataset))
       stop_for_status(patient_names)
       patient_names <- fromJSON(content(patient_names, type = "text"),flatten = TRUE)
       
