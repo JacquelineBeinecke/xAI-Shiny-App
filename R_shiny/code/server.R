@@ -42,6 +42,13 @@ server <- function(input, output, session) {
   
   # update selectize input for patients
   observeEvent(input$upload_dataset, {
+      # disable select dataset button until dataset is loaded
+      shinyjs::disable("upload_dataset")
+      # warning about switching to different dataset
+      output$warning_switching_dataset <- renderUI({
+        HTML("<span style='color:red; font-size:14px'> <br/> Warning: If you choose a different dataset, all your modifications will be lost. Please save your modifications by pressing the Download-Button in the Interact-Tab. </span>")
+      })  
+      
       # get token for url
       t <- GET(paste(api_path, "/", sep=""))
       stop_for_status(t)
@@ -61,6 +68,8 @@ server <- function(input, output, session) {
       
       # enable interact tab when dataset is selected
       shinyjs::js$enableTab("Interact")
+      #enable select dataset button when dataset is loaded
+      shinyjs::enable("upload_dataset")
   })
   
   # load graph of selected patient
@@ -371,8 +380,7 @@ server <- function(input, output, session) {
           visOptions(
             highlightNearest = list(enabled = TRUE, degree = 1), #this shows subgraph of selected and and its degree 1 neighbours
             # drop down on top of the graph
-            nodesIdSelection = TRUE
-            #selectedBy = "rel_pos" #with this the drop down menu lets you choose nodes based on their rel_pos value
+            selectedBy = list(variable = "label") #with this the drop down menu lets you choose nodes based on their rel_pos value
           )
         
       # if for some reason there are no edges

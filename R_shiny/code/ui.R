@@ -129,9 +129,10 @@ ui <- fluidPage(
                                       wellPanel(
                                         selectizeInput("choose_a_dataset", h4("Select one of the following datasets:"),
                                                        choices = fromJSON(content(GET(paste(api_path,"/data/dataset_name",sep=""),type="basic"),"text"),flatten = TRUE), selected = 1),
-                                        actionButton("upload_dataset", "Select dataset", class = "btn-primary")
+                                        actionButton("upload_dataset", "Select dataset", class = "btn-primary"),
+                                        # placeholder for error messages
+                                        htmlOutput("warning_switching_dataset")
                                         )
-                                     
                                       )
                         )
                       
