@@ -44,7 +44,7 @@ load_graph_from_json <- function(json_graph){
   
   nodelist <- as.data.frame(graph_df$data[[1]])
   colnames(nodelist) <- graph_df$columns[[1]]
-  nodelist <- read.csv("E:\\Uni\\Doktor-Goettingen\\Data\\kirc_random_ui\\kirc_random_nodes_ui_format_0.csv")
+
   # order data frame by node label from A-Z
   nodelist <- nodelist[order(nodelist$label), ]
   
@@ -65,7 +65,7 @@ load_graph_from_json <- function(json_graph){
   
   edgelist <- as.data.frame(graph_df$data[[2]])
   colnames(edgelist) <- graph_df$columns[[2]]
-  edgelist <- read.csv("E:\\Uni\\Doktor-Goettingen\\Data\\kirc_random_ui\\kirc_random_egdes_ui_format_0.csv")
+
   # order data frame from A-Z
   edgelist <- edgelist[order(edgelist$from), ]
   
