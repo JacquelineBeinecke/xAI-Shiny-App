@@ -158,11 +158,13 @@ ui <- fluidPage(
                         column(12,
                                column(7,
                                       radioButtons("radio", label = HTML("<h3>","<p style='line-height:60%'>","Select relevance values to sort nodes by", "</p></h3>", "<h5>", "(only available if relevance values are present)","</h5>"),
-                                                   choices = list("rel_pos (high to low)" = "rel_pos_highlow",
+                                                   choices = list("degree (high to low)" = "degree_highlow",
+                                                                  "degree (low to high)" = "degree_lowhigh",
+                                                                  "rel_pos (high to low)" = "rel_pos_highlow",
                                                                   "rel_pos (low to high)" = "rel_pos_lowhigh",
                                                                   "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
                                                                   "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
-                                                   selected = "rel_pos_highlow", width = "500px"),
+                                                   selected = "degree_highlow", width = "500px"),
                                       #default nodes to display is 3 (value = 3)
                                       #default max is 100 but this gets updated as soon as node and edge data are uploaded
                                       #then the max value will always be the amount of nodes in the data

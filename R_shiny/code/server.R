@@ -30,9 +30,6 @@ server <- function(input, output, session) {
   edge_features_list <<- data.frame()
   temporary_added_edge_feature <<- data.frame()
   
-  # global variable that monitors if sorting data by rel_pos/rel_pos_neg is enabled or not (is disabled when no relevance values are given)
-  sorting <<- 0
-  
   # global variable that indexes the graphs (this always get +1 if predict or retrain is pressed)
   graph_idx <<- 0
   
@@ -145,35 +142,40 @@ server <- function(input, output, session) {
   observeEvent(ignoreInit = T,input$choose_patient,{
   if(!("rel_pos_neg" %in% colnames(nodelist_table) & !("rel_pos" %in% colnames(nodelist_table)))){
       shinyjs::disable("radio")
-      
-      sorting <<- 0
-      
+      updateRadioButtons(session, "radio",
+                       choices = list("degree (high to low)" = "degree_highlow",
+                                      "degree (low to high)" = "degree_lowhigh"), 
+                       selected = "degree_highlow")
+ 
     }
     if(!("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
       shinyjs::enable("radio")
        updateRadioButtons(session, "radio",
-                          choices = list("rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
+                          choices = list("degree (high to low)" = "degree_highlow",
+                                         "degree (low to high)" = "degree_lowhigh",
+                                         "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
                                          "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
                           selected = "rel_pos_neg_highlow")
-      sorting <<- 1
     }
     if(("rel_pos" %in% colnames(nodelist_table)) & !("rel_pos_neg" %in% colnames(nodelist_table))){
       shinyjs::enable("radio")
       updateRadioButtons(session, "radio",
-                         choices = list("rel_pos (high to low)" = "rel_pos_highlow",
+                         choices = list("degree (high to low)" = "degree_highlow",
+                                        "degree (low to high)" = "degree_lowhigh",
+                                        "rel_pos (high to low)" = "rel_pos_highlow",
                                         "rel_pos (low to high)" = "rel_pos_lowhigh"), 
                          selected = "rel_pos_highlow")
-      sorting <<- 1
     }
     if(("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
       shinyjs::enable("radio")
       updateRadioButtons(session, "radio",
-                         choices = list("rel_pos (high to low)" = "rel_pos_highlow",
+                         choices = list("degree (high to low)" = "degree_highlow",
+                                        "degree (low to high)" = "degree_lowhigh",
+                                        "rel_pos (high to low)" = "rel_pos_highlow",
                                         "rel_pos (low to high)" = "rel_pos_lowhigh",
                                         "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
                                         "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
                          selected = "rel_pos_highlow")
-      sorting <<- 1
     }
   })
   
@@ -2107,23 +2109,33 @@ server <- function(input, output, session) {
     edgelist <- edgelist_table
     ### create sub node table ###
     
+    degree <- c() # initialze "degree" vector
+    for(i in 1:length(nodelist$id)){
+      degree[i] <- nrow(edgelist[which(edgelist$from == nodelist$id[i]),]) + nrow(edgelist[which(edgelist$to == nodelist$id[i]),])
+    } 
+    degree <- data.frame(degree)
+    
     # sort nodelist by XAI values (method is selected by radiobutton)
-    if(sorting){
-      if(input$radio == "rel_pos_highlow"){
-        nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = TRUE),]
-      }
-      if(input$radio == "rel_pos_lowhigh"){
-        nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = FALSE),]
-      }
-      if(input$radio == "rel_pos_neg_highlow"){
-        nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = TRUE),]
-      }
-      if(input$radio == "rel_pos_neg_lowhigh"){
-        nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = FALSE),]
-      }
-    }else{
-      nodelist_for_table <- nodelist
+    
+    if(input$radio == "degree_highlow"){
+      nodelist_for_table <- nodelist[order(cbind(nodelist,degree)[["degree"]], decreasing = TRUE),]
     }
+    if(input$radio == "degree_lowhigh"){
+      nodelist_for_table <- nodelist[order(cbind(nodelist,degree)[["degree"]], decreasing = FALSE),]
+    }
+    if(input$radio == "rel_pos_highlow"){
+      nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = TRUE),]
+    }
+    if(input$radio == "rel_pos_lowhigh"){
+      nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = FALSE),]
+    }
+    if(input$radio == "rel_pos_neg_highlow"){
+      nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = TRUE),]
+    }
+    if(input$radio == "rel_pos_neg_lowhigh"){
+      nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = FALSE),]
+    }
+  
     
     # only show the amount of nodes selected by the sliding bar
     nodelist_for_table <- nodelist_for_table[1:input$slider,] 
