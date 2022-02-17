@@ -42,6 +42,8 @@ server <- function(input, output, session) {
   
   # update selectize input for patients
   observeEvent(input$upload_dataset, {
+      api_path <<- "http://127.0.0.1:5000"
+      
       # disable select dataset button until dataset is loaded
       shinyjs::disable("upload_dataset")
       # warning about switching to different dataset
@@ -58,10 +60,10 @@ server <- function(input, output, session) {
       # get list of patient names
       patient_names <- GET(paste(api_path,"/data/patient_name",sep=""), query = list(dataset_name = input$choose_a_dataset))
       stop_for_status(patient_names)
-      patient_names <- fromJSON(content(patient_names, type = "text"),flatten = TRUE)
+      patient_names <- fromJSON(content(patient_names, type = "text"), flatten = TRUE)
       
       # update selection of patients by name
-      updateSelectizeInput(session, "choose_patient", choices = patient_names, server = TRUE)
+      updateSelectizeInput(session, "choose_patient", choices = patient_names)
       
       # update log about selected dataset
       updateLog(paste("Dataset selected: ", input$choose_a_dataset, sep=""))
@@ -81,7 +83,7 @@ server <- function(input, output, session) {
     
      # get patient id
      pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
-     
+  
      # get the amount of modified graphs saved for this patient
      graph_idx <<- get_max_graphs(pat_id)
      
