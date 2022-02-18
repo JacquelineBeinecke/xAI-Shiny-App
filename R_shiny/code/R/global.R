@@ -44,7 +44,7 @@ load_graph_from_json <- function(json_graph){
   
   nodelist <- as.data.frame(graph_df$data[[1]])
   colnames(nodelist) <- graph_df$columns[[1]]
-
+  #nodelist <- read.csv("E:\\Uni\\Doktor-Goettingen\\Data\\kirc_random_ui_MAX\\kirc_random_nodes_ui_format_100.csv")
   # order data frame by node label from A-Z
   nodelist <- nodelist[order(nodelist$label), ]
   
@@ -65,7 +65,7 @@ load_graph_from_json <- function(json_graph){
   
   edgelist <- as.data.frame(graph_df$data[[2]])
   colnames(edgelist) <- graph_df$columns[[2]]
-
+  #edgelist <- read.csv("E:\\Uni\\Doktor-Goettingen\\Data\\kirc_random_ui_MAX\\kirc_random_egdes_ui_format_100.csv")
   # order data frame from A-Z
   edgelist <- edgelist[order(edgelist$from), ]
   
@@ -294,9 +294,9 @@ get_degree_colors_and_border <- function(nodelist){
 
   # calculate intervals
   if(max(nodes$degree) < 5){
-    intervals <- cut(nodes$degree, breaks = seq(from = 0, to = max(nodes$degree), by = 1), dig.lab = 0, include.lowest = TRUE)
+    intervals <- cut(nodes$degree, breaks = seq(from = 0, to = max(nodes$degree), by = 1), include.lowest = TRUE)
   }else{
-    intervals <- cut(nodes$degree, breaks = round(seq(from = 0, to = max(nodes$degree), by = max(nodes$degree)/5),0), dig.lab = 0, include.lowest = TRUE)
+    intervals <- cut(nodes$degree, breaks = round(seq(from = 0, to = max(nodes$degree), by = max(nodes$degree)/5),0), include.lowest = TRUE)
   }
   # map a color to each group
   names(degree_colors) <- levels(intervals)
