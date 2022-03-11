@@ -2,37 +2,8 @@ server <- function(input, output, session) {
   ##################################
   ####### global variables #########
   ##################################
-  
-  # global variables that contain the modified graph data. These will be downloaded by the user (and would be returned to an API)
-  nodelist_table <<- data.frame()
-  edgelist_table <<- data.frame()
-  
-  # this contains all selected nodes and their corresponding edges
-  small_nodelist_for_table <<- data.frame()
-  small_edgelist <<- data.frame()
-  
-  # this contains more than the selected nodes, because we also need to visualize the neighboring nodes
-  small_nodelist_for_graph <<- data.frame()
-  
-  # empty data tables that will be used to save user modification actions and thus allow the undo function
-  modification_history <<- data.frame(action = c(0), element = c(0))
-  all_deleted_nodes <<- data.frame()
-  all_deleted_nodes_edges <<- list()
-  all_deleted_edges <<- data.frame()
-  all_added_edges <<- data.frame()
-  all_added_nodes <<- data.frame()
-  
-  # global variable for temporary use during node addition
-  node_features_list <<- data.frame()
-  temporary_added_node_feature <<- data.frame()
-  
-  # global variable for temporary use during edge addition
-  edge_features_list <<- data.frame()
-  temporary_added_edge_feature <<- data.frame()
-  
-  # global variable that indexes the graphs (this always get +1 if predict or retrain is pressed)
-  graph_idx <<- 0
-  
+
+  initGlobalVars()
   
   #######################################
   ######## upload whole dataset #########
@@ -112,21 +83,10 @@ server <- function(input, output, session) {
      updateSliderInput(session, "slider", max=max, step=1)
   
      # clear any printed error messages on the UI
-     output$info_change <- renderUI({
-       HTML(" ")
-     })
-  
-     output$error_only_zeros <- renderUI({
-       HTML(" ")
-     })
-  
-     output$error_add_node <- renderUI({
-       HTML(" ")
-     })
-  
-     output$error_add_edge <- renderUI({
-       HTML(" ")
-     })
+     output$info_change <- renderUI({HTML(" ")})
+     output$error_only_zeros <- renderUI({HTML(" ")})
+     output$error_add_node <- renderUI({HTML(" ")})
+     output$error_add_edge <- renderUI({HTML(" ")})
   
      # empty all text input fields of edge and node addition
      updateNumericInput(session, "edgefeature_value", value = 0)
@@ -439,21 +399,10 @@ server <- function(input, output, session) {
     calculate_smaller_node_and_edge_list()
     
     # clear any printed error messages on the UI
-    output$info_change <- renderUI({
-      HTML(" ")
-    })
-    
-    output$error_only_zeros <- renderUI({
-      HTML(" ")
-    })
-    
-    output$error_add_node <- renderUI({
-      HTML(" ")
-    })
-    
-    output$error_add_edge <- renderUI({
-      HTML(" ")
-    })
+    output$info_change <- renderUI({HTML(" ")})
+    output$error_only_zeros <- renderUI({HTML(" ")})
+    output$error_add_node <- renderUI({HTML(" ")})
+    output$error_add_edge <- renderUI({HTML(" ")})
     
     # empty all text input fields of edge and node addition
     updateNumericInput(session, "edgefeature_value", value = 0)
@@ -1192,15 +1141,23 @@ server <- function(input, output, session) {
     updateNumericInput(session, "edgefeature_value", value = 0)
     
     # reset temporary variables to initial state (ready for next edge addition)
-    temporary_added_edge_feature <<- edgelist_table[0, ]
-    temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
-    temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
-    edge_features_list <<- subset(edgelist_table, select = -c(1:3))
+    if(ncol(edgelist_table)>3){
+      edge_features_list <<- subset(edgelist_table, select = -c(1:3))
+      
+      # all columns of edgelist but with only one row that is initialized with placeholder and zeros for adding an edge
+      temporary_added_edge_feature <<- edgelist_table[0, ]
+      temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value", rep(0, length(colnames(edgelist_table)) - 3))
+      temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)] <<- as.numeric(temporary_added_edge_feature[, 4:ncol(temporary_added_edge_feature)])
+    }else{
+      temporary_added_edge_feature <<- edgelist_table[0, ]
+      temporary_added_edge_feature[nrow(temporary_added_edge_feature) + 1, ] <<- c("from_value", "to_value", "id_value")
+    }
     
     # selection list of edge features needs to contain all attributes again
     edge_features <- subset(edgelist_table, select = -c(1:3))
     feature_names <- colnames(edge_features)
     updateSelectizeInput(session, "choose_edge_feature", choices = feature_names, server = TRUE)
+    
     
     # remove any error message
     output$error_add_edge <- renderUI({

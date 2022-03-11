@@ -436,3 +436,39 @@ ovwriting_warning <- function(graph_idx, max_graph){
   
   return(message)
 }
+
+##########################################
+########   functions for init    #########
+##########################################
+
+initGlobalVars <- function(){
+  # global variables that contain the modified graph data. These will be downloaded by the user (and would be returned to an API)
+  nodelist_table <<- data.frame()
+  edgelist_table <<- data.frame()
+  
+  # this contains all selected nodes and their corresponding edges
+  small_nodelist_for_table <<- data.frame()
+  small_edgelist <<- data.frame()
+  
+  # this contains more than the selected nodes, because we also need to visualize the neighboring nodes
+  small_nodelist_for_graph <<- data.frame()
+  
+  # empty data tables that will be used to save user modification actions and thus allow the undo function
+  modification_history <<- data.frame(action = c(0), element = c(0))
+  all_deleted_nodes <<- data.frame()
+  all_deleted_nodes_edges <<- list()
+  all_deleted_edges <<- data.frame()
+  all_added_edges <<- data.frame()
+  all_added_nodes <<- data.frame()
+  
+  # global variable for temporary use during node addition
+  node_features_list <<- data.frame()
+  temporary_added_node_feature <<- data.frame()
+  
+  # global variable for temporary use during edge addition
+  edge_features_list <<- data.frame()
+  temporary_added_edge_feature <<- data.frame()
+  
+  # global variable that indexes the graphs (this always get +1 if predict or retrain is pressed)
+  graph_idx <<- 0
+}
