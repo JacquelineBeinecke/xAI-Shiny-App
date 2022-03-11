@@ -33,8 +33,6 @@ server <- function(input, output, session) {
   # global variable that indexes the graphs (this always get +1 if predict or retrain is pressed)
   graph_idx <<- 0
   
-  # new graph vis
-  new_graph_vis <- reactiveVal(0)
   
   #######################################
   ######## upload whole dataset #########
@@ -58,12 +56,13 @@ server <- function(input, output, session) {
       api_path <<- paste(api_path, token, sep="/")
       
       # get list of patient names
-      patient_names <- GET(paste(api_path,"/data/patient_name",sep=""), query = list(dataset_name = input$choose_a_dataset))
-      stop_for_status(patient_names)
-      patient_names <- fromJSON(content(patient_names, type = "text"), flatten = TRUE)
+      patient_names <- getPatientNames(input$choose_a_dataset)
       
-      # update selection of patients by name
-      updateSelectizeInput(session, "choose_patient", choices = patient_names)
+      
+      # This is so that a new patient gets selected and the loading of a new graph gets triggered 
+      updateSelectizeInput(session, "choose_patient", choices = patient_names, selected = patient_names[0])
+      # This loads the first patient of the new dataset
+      updateSelectizeInput(session, "choose_patient", choices = patient_names, selected = patient_names[1])
       
       # update log about selected dataset
       updateLog(paste("Dataset selected: ", input$choose_a_dataset, sep=""))
@@ -76,14 +75,15 @@ server <- function(input, output, session) {
   
   # load graph of selected patient
   observeEvent(ignoreInit = TRUE, input$choose_patient, {
+    
     # write in log that changes were not saved 
     if(nrow(modification_history)>1){
       updateLog("Your modifications for this patient were not saved")
     }
-    
+      
      # get patient id
      pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
-  
+     
      # get the amount of modified graphs saved for this patient
      graph_idx <<- get_max_graphs(pat_id)
      

@@ -99,6 +99,14 @@ load_graph_from_json <- function(json_graph){
   all_added_nodes <<- data.frame()
 }
 
+getPatientNames <- function(dataset){
+  # get list of patient names
+  patient_names <- GET(paste(api_path,"/data/patient_name",sep=""), query = list(dataset_name = dataset))
+  stop_for_status(patient_names)
+  patient_names <- fromJSON(content(patient_names, type = "text"), flatten = TRUE)
+  
+  return(patient_names)
+}
 #############################################
 ######## functions for table vis ############
 #############################################
