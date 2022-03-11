@@ -107,6 +107,7 @@ getPatientNames <- function(dataset){
   
   return(patient_names)
 }
+
 #############################################
 ######## functions for table vis ############
 #############################################
@@ -165,9 +166,6 @@ update_shown_edge_table <- function(new_edge_table, nodelist_table){
     options = list(scrollX = TRUE, fixedColumns = list(leftColumns = 2))
   )
 }
-
-
-
 
 
 #############################################
@@ -471,4 +469,170 @@ initGlobalVars <- function(){
   
   # global variable that indexes the graphs (this always get +1 if predict or retrain is pressed)
   graph_idx <<- 0
+}
+
+#############################################################
+########  functions for adding/deleting node/edge   #########
+#############################################################
+
+calculate_nodes_that_can_have_edges_added_to_them <- function(nodes, edges){
+  
+  nodes_that_can_be_connected <- c()
+  for(id in nodes$id){
+    amount_edges <- (length(which(edges$to == id)) + length(which(edges$from == id)))
+    
+    # if there are 3 nodes in the graph each node can have a total of 3-1 edges
+    if(amount_edges < (nrow(nodes) - 1)){
+      nodes_that_can_be_connected <- c(nodes_that_can_be_connected, nodes$label[which(nodes$id==id)])
+    }
+  }
+  
+  return(nodes_that_can_be_connected)
+}
+
+calculate_nodes_that_can_be_connected_to_selected_node <- function(first_node, nodes, edges){
+  selected_node_for_addition <- nodes[which(nodes$label == first_node), 2]
+  connected_nodes_add <- unique(c(
+    edges$to[which(edges$from == selected_node_for_addition)],
+    edges$from[which(edges$to == selected_node_for_addition)]
+  ))
+  connected_nodes_labels_add <- c()
+  for (index in 1:length(connected_nodes_add)) {
+    connected_nodes_labels_add <- c(connected_nodes_labels_add, nodes$label[nodes$id == connected_nodes_add[index]])
+  }
+  not_connected_nodes_labels <- setdiff(nodes$label, connected_nodes_labels_add)
+  not_connected_nodes_labels <- not_connected_nodes_labels[-c(which(not_connected_nodes_labels == first_node))]
+  not_connected_nodes_labels <- sort(not_connected_nodes_labels)
+  
+  return(not_connected_nodes_labels)
+}
+
+first_node_of_connections_that_can_be_removed <- function(nodes, edges){
+  nodes_with_edges <- unique(c(edges$from, edges$to))
+  node_labels2 <- c()
+  for (index in 1:length(nodes_with_edges)) {
+    next_node <- nodes$label[which(nodes$id == nodes_with_edges[index])]
+    node_labels2 <- c(node_labels2, next_node)
+  }
+  # only let the user select the nodes that were selected (not all that are shown in the graph vis)
+  node_labels <- nodes$label[nodes$label %in% node_labels2]
+  node_labels <- sort(node_labels)
+  
+  return(node_labels)
+}
+
+second_node_of_connections_that_can_be_removed <- function(first_node, nodes, edges){
+  # get node id from selected node label
+  selected_node <- nodes[which(nodes$label == first_node), 2]
+  # get connected nodes
+  connected_nodes <- unique(c(
+    edges$to[which(edges$from == selected_node)],
+    edges$from[which(edges$to == selected_node)]
+  ))
+  connected_nodes_labels <- c()
+  for(index in 1:length(connected_nodes)) {
+    connected_nodes_labels <- c(connected_nodes_labels, nodes$label[nodes$id == connected_nodes[index]])
+  }
+  connected_nodes_labels <- sort(connected_nodes_labels)
+  
+  return(connected_nodes_labels)  
+}
+
+#########################################
+########  function for sorting  #########
+#########################################
+
+sort_by_user_selection <- function(sort_by, nodes, degree){
+  if(sort_by == "degree_highlow"){
+    nodelist_for_table <- nodes[order(cbind(nodes,degree)[["degree"]], decreasing = TRUE),]
+  }
+  if(sort_by == "degree_lowhigh"){
+    nodelist_for_table <- nodes[order(cbind(nodes,degree)[["degree"]], decreasing = FALSE),]
+  }
+  if(sort_by == "rel_pos_highlow"){
+    nodelist_for_table <- nodes[order(nodes[["rel_pos"]], decreasing = TRUE),]
+  }
+  if(sort_by == "rel_pos_lowhigh"){
+    nodelist_for_table <- nodes[order(nodes[["rel_pos"]], decreasing = FALSE),]
+  }
+  if(sort_by == "rel_pos_neg_highlow"){
+    nodelist_for_table <- nodes[order(nodes[["rel_pos_neg"]], decreasing = TRUE),]
+  }
+  if(sort_by == "rel_pos_neg_lowhigh"){
+    nodelist_for_table <- nodes[order(nodes[["rel_pos_neg"]], decreasing = FALSE),]
+  }
+  
+  return(nodelist_for_table)
+}
+
+##################################################################
+########  function for creating smaller node/edge lists  #########
+##################################################################
+
+calculate_small_tables <- function(nodes, edges, radio, slider){
+  ### create sub node table ###
+  degree <- c() # initialze "degree" vector
+  for(i in 1:length(nodes$id)){
+    degree[i] <- nrow(edges[which(edges$from == nodes$id[i]),]) + nrow(edges[which(edges$to == nodes$id[i]),])
+  } 
+  degree <- data.frame(degree)
+  
+  # sort nodelist by XAI values (method is selected by radiobutton)
+  nodelist_for_table <- sort_by_user_selection(radio, nodes, degree)
+  
+  # only show the amount of nodes selected by the sliding bar
+  nodelist_for_table <- nodelist_for_table[1:slider,] 
+  
+  # for plotting the nodes, we also need the nodes they are connected to
+  nodelist_for_graph <- nodelist_for_table #we want to make the table for plotting bigger
+  # iterate over our nodes
+  for(ids in nodelist_for_table$id){
+    # check if node is in edgelist$from
+    if(length(which(edges$from == ids)) > 0){
+      # check if the connected nodes are in our nodelist
+      for(i in which(edges$from == ids)){
+        # if node id is not yet in table, rbind it to table and save in nodelist_for_graph
+        if(!(edges$to[i] %in% nodelist_for_graph$id)){
+          nodelist_for_graph <- rbind(nodelist_for_graph, nodes[which(nodes$id==edges$to[i]), ])
+        }
+      }
+    }
+    # check if node is in edgelist$to
+    if(length(which(edges$to == ids)) > 0){
+      # check if the connected nodes are in our nodelist
+      for(i in which(edges$to == ids)){
+        # if node id is not yet in table, rbind it to table and save in nodelist_for_graph
+        if(!(edges$from[i] %in% nodelist_for_graph$id)){
+          nodelist_for_graph <- rbind(nodelist_for_graph, nodes[which(nodes$id==edges$from[i]), ])
+        }
+      }
+    }           
+  }
+  # save in global variable
+  small_nodelist_for_table <<- nodelist_for_table
+  small_nodelist_for_graph <<- nodelist_for_graph
+  
+  ### create sub edge table ###    
+  
+  # vector to save the rows that contain a node we want
+  rows <- c()
+  
+  # iterate over our nodes
+  for(ids in nodelist_for_table$id){
+    # check if there is an entry in edgelist$from
+    if(length(which(edges$from == ids)) > 0){
+      rows <- append(rows, which(edges$from == ids))
+    }
+    # check if there is an entry in edgelist$to
+    if(length(which(edges$to == ids)) > 0){
+      rows <- append(rows, which(edges$to == ids))
+    }               
+  }
+  
+  # some rows could have been counted double so only save unique values
+  rows <- unique(rows) 
+  
+  # save in global variable
+  small_edgelist <<- edges[rows,]
+  
 }

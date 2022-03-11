@@ -312,22 +312,17 @@ server <- function(input, output, session) {
   
     # create graph element
     output$graph <- renderVisNetwork({
-      # read data on nodes and edges
-      complete_nodelist <- nodelist_table
-      complete_edgelist <- edgelist_table
-      
+      # create tooltip
       nodes <- small_nodelist_for_graph
-      edges <- small_edgelist
-      
-      nodes$title <- update_node_tooltip(nodes, complete_edgelist)
+      nodes$title <- update_node_tooltip(nodes, edgelist_table)
       
       # plot the graph if edges are given (or left after edge deletions)
-      if(nrow(edges) != 0){
+      if(nrow(small_edgelist) != 0){
         # update edge tooltip title (only if edges are given)
-        edges$title <- update_edge_tooltip(complete_nodelist, edges)
+        small_edgelist$title <- update_edge_tooltip(nodelist_table, small_edgelist)
         
         set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
-        visNetwork(nodes, edges) %>%
+        visNetwork(nodes, small_edgelist) %>%
           visInteraction(zoomView = TRUE, navigationButtons = TRUE, multiselect = TRUE, hover = TRUE) %>%
           # long click on nodes to select multiple nodes or by "Ctrl" + Click
           visIgraphLayout(layout = "layout_with_fr") %>%
@@ -507,44 +502,20 @@ server <- function(input, output, session) {
     #this makes sure that the smaller dataset gets calculated before the initialization of dropdowns
     calculate_smaller_node_and_edge_list()
      
-    # get labels and lists
-    node_labels <- small_nodelist_for_table$label
-    edge_list <- small_edgelist
-    node_list <- small_nodelist_for_graph
-    
     # input for node deletion
-    updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
+    updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
     
     # disable delete button if only one node is in table
-    
-    if(length(node_labels)<=1){
+    if(length(small_nodelist_for_table$label)<=1){
       shinyjs::disable("confirm_node_deletion")
     }
     
     # first input for edge addition
-    nodes_that_can_be_connected <- c()
-    for(id in small_nodelist_for_table$id){
-      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
-      
-      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
-      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
-        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
-      }
-    }
-    
+    nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
 
     # first input for edge deletion - only include node labels which have an edge
-    nodes_with_edges <- unique(c(edge_list$from, edge_list$to))
-    node_labels2 <- c()
-    for (index in 1:length(nodes_with_edges)) {
-      next_node <- node_list$label[which(node_list$id == nodes_with_edges[index])]
-      node_labels2 <- c(node_labels2, next_node)
-    }
-    # only let the user select the nodes that were selected (not all that are shown in the graph vis)
-    node_labels <- node_labels[node_labels %in% node_labels2]
-    node_labels <- sort(node_labels)
-    
+    node_labels <- first_node_of_connections_that_can_be_removed(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
     if(nrow(small_nodelist_for_table) > 1){
@@ -581,48 +552,28 @@ server <- function(input, output, session) {
     input$choose_first_connected_node_delete 
     input$choose_first_connected_node_add
     }, {
-    # get labels and lists
-    edgelist <- small_edgelist
-    nodelist <- small_nodelist_for_graph
-    node_labels <- nodelist$label
-    
     # second input for edge deletion - only containing nodes that are connected to the first selected node
-    selected_node <- input$choose_first_connected_node_delete
-    selected_node <- nodelist[which(nodelist$label == selected_node), 2]
-    connected_nodes <- unique(c(
-      edgelist$to[which(edgelist$from == selected_node)],
-      edgelist$from[which(edgelist$to == selected_node)]
-    ))
-    connected_nodes_labels <- c()
-    for (index in 1:length(connected_nodes)) {
-      connected_nodes_labels <- c(connected_nodes_labels, nodelist$label[nodelist$id == connected_nodes[index]])
-    }
-    connected_nodes_labels <- sort(connected_nodes_labels)
-    
+    connected_nodes_labels <- second_node_of_connections_that_can_be_removed(input$choose_first_connected_node_delete, small_nodelist_for_graph, small_edgelist)
     updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
     
     # second input for edge addition - only containing nodes that are NOT connected to the first selected node
-    selected_node_for_addition <- input$choose_first_connected_node_add
-    selected_node_for_addition <- nodelist[which(nodelist$label == selected_node_for_addition), 2]
-    connected_nodes_add <- unique(c(
-      edgelist$to[which(edgelist$from == selected_node_for_addition)],
-      edgelist$from[which(edgelist$to == selected_node_for_addition)]
-    ))
-    connected_nodes_labels_add <- c()
-    for (index in 1:length(connected_nodes_add)) {
-      connected_nodes_labels_add <- c(connected_nodes_labels_add, nodelist$label[nodelist$id == connected_nodes_add[index]])
-    }
-    not_connected_nodes_labels <- setdiff(nodelist$label, connected_nodes_labels_add)
-    not_connected_nodes_labels <- not_connected_nodes_labels[-c(which(not_connected_nodes_labels == input$choose_first_connected_node_add))]
-    not_connected_nodes_labels <- sort(not_connected_nodes_labels)
-    
+    not_connected_nodes_labels <- calculate_nodes_that_can_be_connected_to_selected_node(input$choose_first_connected_node_add, small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_second_connected_node_add", choices = not_connected_nodes_labels, server = TRUE)
     
     #disable button if there is no possible node to connect to
     if(length(not_connected_nodes_labels) == 0){
       shinyjs::disable("confirm_edge_addition")
+      shinyjs::disable("confirm_edgeFeature_value")
+      shinyjs::disable("cancel_edge_addition")
     }else{
       shinyjs::enable("confirm_edge_addition")
+      shinyjs::enable("cancel_edge_addition")
+      if(ncol(edge_features_list)==0){
+        shinyjs::disable("confirm_edgeFeature_value")
+      }else{
+        shinyjs::enable("confirm_edgeFeature_value")
+      }
+      
     }
   })
   
@@ -636,11 +587,11 @@ server <- function(input, output, session) {
   
   
   # initialize dropdown of edge attributes for edge addition ----------------------------------
-  observeEvent(input$choose_patient, {
+  observeEvent(ignoreInit = TRUE, input$choose_patient, {
     edge_features <- edge_features_list
     feature_names <- colnames(edge_features)
     updateSelectizeInput(session, "choose_edge_feature", choices = feature_names, server = TRUE)
-    
+ 
     #if there are no edge features disable enter button
     if(ncol(edge_features_list)==0){
       shinyjs::disable("confirm_edgeFeature_value")
@@ -661,17 +612,16 @@ server <- function(input, output, session) {
     shinyjs::disable("confirm_node_deletion")
     
     # read the node that has been selected by the user for deletion
-    nodelist <- nodelist_table
-    id <- nodelist$id[which(nodelist$label == input$choose_node_to_delete)]
+    id <- nodelist_table$id[which(nodelist_table$label == input$choose_node_to_delete)]
     
     # data frame with newly deleted node, its attributes and edges
-    deleted_node <- nodelist[which(nodelist$id == id), ]
+    deleted_node <- nodelist_table[which(nodelist_table$id == id), ]
     
     # update global nodelist
     nodelist_table <<- nodelist_table[-c(which(nodelist_table$label == deleted_node$label)), ]
     small_nodelist_for_graph <<- small_nodelist_for_graph[-c(which(small_nodelist_for_graph$label == deleted_node$label)), ]
     small_nodelist_for_table <<- small_nodelist_for_table[-c(which(small_nodelist_for_table$label == deleted_node$label)), ]
-
+    
     # update global edgelist and save deleted edges from node in a data frame
     deleted_nodes_edges <- data.frame()
     if (deleted_node$id %in% edgelist_table$from) {
@@ -713,27 +663,12 @@ server <- function(input, output, session) {
     # update list of nodes for node deletion
     updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
     
-    
     # update first input selection for edge addition
-    nodes_that_can_be_connected <- c()
-    for(id in small_nodelist_for_table$id){
-      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
-      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
-      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
-        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
-      }
-    }
-    
+    nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     # update list of nodes for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
-    node_labels <- c()
-    for (index in 1:length(nodes_with_edges)) {
-      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
-      node_labels <- c(node_labels, next_node)
-    }
-    node_labels <- sort(node_labels)
+    node_labels <- first_node_of_connections_that_can_be_removed(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
     # inform user on the change
@@ -754,6 +689,11 @@ server <- function(input, output, session) {
     if(nrow(small_nodelist_for_table) > 1){
          shinyjs::enable("confirm_node_deletion")
     }
+    
+    if(nrow(small_edgelist) == 0){
+      shinyjs::disable("confirm_edge_deletion")
+    }
+    
     # show warning for user
     if(nrow(modification_history)>1){
       output$warning_deletion <- renderUI({
@@ -775,14 +715,12 @@ server <- function(input, output, session) {
     
     # disable delete button until deletion is done
     shinyjs::disable("confirm_edge_deletion")
-    nodelist <- nodelist_table
-    edgelist <- edgelist_table
     
     # read which connected nodes have been selected by the user for deletion
-    id_first_node <- nodelist$id[which(nodelist$label == input$choose_first_connected_node_delete)]
-    id_second_node <- nodelist$id[which(nodelist$label == input$choose_second_connected_node_delete)]
-    id_edge <- edgelist$id[which((edgelist$from == id_first_node & edgelist$to == id_second_node) |
-                                   (edgelist$to == id_first_node & edgelist$from == id_second_node))]
+    id_first_node <- nodelist_table$id[which(nodelist_table$label == input$choose_first_connected_node_delete)]
+    id_second_node <- nodelist_table$id[which(nodelist_table$label == input$choose_second_connected_node_delete)]
+    id_edge <- edgelist_table$id[which((edgelist_table$from == id_first_node & edgelist_table$to == id_second_node) |
+                                   (edgelist_table$to == id_first_node & edgelist_table$from == id_second_node))]
     
     # newly deleted edge and its attributes
     deleted_edge <- edgelist_table[which(edgelist_table$id == id_edge), ]
@@ -805,43 +743,15 @@ server <- function(input, output, session) {
       visRemoveEdges(id = deleted_edge$id)
     
     # update first input selection for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
-    node_labels <- c()
-    for (index in 1:length(nodes_with_edges)) {
-      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
-      node_labels <- c(node_labels, next_node)
-    }
-    node_labels <- sort(node_labels)
-    
+    node_labels <- first_node_of_connections_that_can_be_removed(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
     # update second input selection for edge deletion
-    edgelist <- small_edgelist
-    node_labels <- small_nodelist_for_table$label
-    selected_node <- input$choose_first_connected_node_delete
-    selected_node <- nodelist[which(node_labels == selected_node), 2]
-    connected_nodes <- unique(c(
-      edgelist$to[which(edgelist$from == selected_node)],
-      edgelist$from[which(edgelist$to == selected_node)]
-    ))
-    connected_nodes_labels <- c()
-    for (index in 1:length(connected_nodes)) {
-      connected_nodes_labels <- c(connected_nodes_labels, node_labels[nodelist$id == connected_nodes[index]])
-    }
-    connected_nodes_labels <- sort(connected_nodes_labels)
-    
+    connected_nodes_labels <- second_node_of_connections_that_can_be_removed(input$choose_first_connected_node_delete, small_nodelist_for_graph, small_edgelist)
     updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
     
     # update first input selection for edge addition
-    nodes_that_can_be_connected <- c()
-    for(id in small_nodelist_for_table$id){
-      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
-      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
-      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
-        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
-      }
-    }
-    
+    nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     
@@ -925,12 +835,10 @@ server <- function(input, output, session) {
   # on button click "Add Edge" ----------------------------------
   observeEvent(input$confirm_edge_addition, {
     shinyjs::disable("confirm_edge_addition")
-    nodelist <- nodelist_table
-    edgelist <- edgelist_table
     
     # read selected nodes ids for edge addition and the entered feature values
-    id_first_node <- nodelist$id[which(nodelist$label == input$choose_first_connected_node_add)]
-    id_second_node <- nodelist$id[which(nodelist$label == input$choose_second_connected_node_add)]
+    id_first_node <- nodelist_table$id[which(nodelist_table$label == input$choose_first_connected_node_add)]
+    id_second_node <- nodelist_table$id[which(nodelist_table$label == input$choose_second_connected_node_add)]
     feature_value <- input$edgefeature_value
     selected_feature <- input$choose_edge_feature
     
@@ -1035,61 +943,20 @@ server <- function(input, output, session) {
         })
         
         # update first input selection for edge addition
-        nodes_that_can_be_connected <- c()
-        for(id in small_nodelist_for_table$id){
-          amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
-          # if there are 3 nodes in the graph each node can have a total of 3-1 edges
-          if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
-            nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
-          }
-        }
-        
+        nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
         updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
         
         # update second input selection for edge addition
-        edgelist <- small_edgelist
-        node_labels <- small_nodelist_for_table$label
-        selected_node_for_addition <- input$choose_first_connected_node_add
-        selected_node_for_addition <- nodelist[which(node_labels == selected_node_for_addition), 2]
-        
-        connected_nodes_add <- unique(c(
-          edgelist$to[which(edgelist$from == selected_node_for_addition)],
-          edgelist$from[which(edgelist$to == selected_node_for_addition)]
-        ))
-        connected_nodes_labels_add <- c()
-        for (index in 1:length(connected_nodes_add)) {
-          connected_nodes_labels_add <- c(connected_nodes_labels_add, node_labels[nodelist$id == connected_nodes_add[index]])
-        }
-        not_connected_nodes_labels <- setdiff(node_labels, connected_nodes_labels_add)
-        not_connected_nodes_labels <- not_connected_nodes_labels[-c(which(not_connected_nodes_labels == input$choose_first_connected_node_add))]
-        not_connected_nodes_labels <- sort(not_connected_nodes_labels)
-        
+        not_connected_nodes_labels <- calculate_nodes_that_can_be_connected_to_selected_node(input$choose_first_connected_node_add, small_nodelist_for_table, small_edgelist)
         updateSelectizeInput(session, "choose_second_connected_node_add", choices = not_connected_nodes_labels, server = TRUE)
         
         
         # update first input selection for edge deletion - only node labels which have an edge
-        nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
-        node_labels <- c()
-        for (index in 1:length(nodes_with_edges)) {
-          next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
-          node_labels <- c(node_labels, next_node)
-        }
-        node_labels <- sort(node_labels)
+        node_labels <- first_node_of_connections_that_can_be_removed(small_nodelist_for_table, small_edgelist)
         updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
         
         # update second input selection for edge deletion
-        selected_node <- input$choose_first_connected_node_delete
-        selected_node <- nodelist[which(nodelist$label == selected_node), 2]
-        connected_nodes <- unique(c(
-          edgelist$to[which(edgelist$from == selected_node)],
-          edgelist$from[which(edgelist$to == selected_node)]
-        ))
-        connected_nodes_labels <- c()
-        for (index in 1:length(connected_nodes)) {
-          connected_nodes_labels <- c(connected_nodes_labels, nodelist$label[nodelist$id == connected_nodes[index]])
-        }
-        connected_nodes_labels <- sort(connected_nodes_labels)
-        
+        connected_nodes_labels <- second_node_of_connections_that_can_be_removed(input$choose_first_connected_node_delete, small_nodelist_for_graph, small_edgelist)
         updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
       
         
@@ -1129,6 +996,10 @@ server <- function(input, output, session) {
             HTML("<span style='color:red; font-size:14px'> <br/> Warning: If you choose a different patient now, all your modifications will be lost. Please save your modifications by either pressing predict or retrain. </span>")
           })
         }
+        # enable edge deletion in case it was disabled before, because there were no more edges
+        if(nrow(small_edgelist) != 0){
+          shinyjs::enable("confirm_edge_deletion")
+        }
       }
     }
   })
@@ -1158,6 +1029,8 @@ server <- function(input, output, session) {
     feature_names <- colnames(edge_features)
     updateSelectizeInput(session, "choose_edge_feature", choices = feature_names, server = TRUE)
     
+    # enable enter of values again (it may have been turned off after enter all feature values)
+    shinyjs::enable("confirm_edgeFeature_value")
     
     # remove any error message
     output$error_add_edge <- renderUI({
@@ -1308,27 +1181,13 @@ server <- function(input, output, session) {
             updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
             
             # update first input selection for edge addition
-            nodes_that_can_be_connected <- c()
-            for(id in small_nodelist_for_table$id){
-              amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
-              # if there are 3 nodes in the graph each node can have a total of 3-1 edges
-              if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
-                nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
-              }
-            }
-            
+            nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
             updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
             
             
             # update first input selection for edge deletion
             # update list of nodes for edge deletion - only node labels which have an edge
-            nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
-            node_labels <- c()
-            for (index in 1:length(nodes_with_edges)) {
-              next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
-              node_labels <- c(node_labels, next_node)
-            }
-            node_labels <- sort(node_labels)
+            node_labels <- first_node_of_connections_that_can_be_removed(small_nodelist_for_table, small_edgelist)
             updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
             
             # clear text input, after a new node was created
@@ -1504,27 +1363,12 @@ server <- function(input, output, session) {
     # update list of nodes for node deletion
     updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
     
-    # update list of nodes for edge addition
     # update first input selection for edge addition
-    nodes_that_can_be_connected <- c()
-    for(id in small_nodelist_for_table$id){
-      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
-      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
-      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
-        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
-      }
-    }
-    
+    nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     # update list of nodes for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
-    node_labels <- c()
-    for (index in 1:length(nodes_with_edges)) {
-      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
-      node_labels <- c(node_labels, next_node)
-    }
-    node_labels <- sort(node_labels)
+    node_labels <- first_node_of_connections_that_can_be_removed(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
     # inform user on the change
@@ -1545,8 +1389,8 @@ server <- function(input, output, session) {
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
     
-    if(nrow(small_nodelist_for_table) > 1){
-      shinyjs::enable("confirm_node_deletion")
+    if(nrow(small_edgelist) != 0){
+      shinyjs::enable("confirm_edge_deletion")
     }
   }
   
@@ -1580,41 +1424,15 @@ server <- function(input, output, session) {
     all_deleted_edges <<- all_deleted_edges[-c(nrow(all_deleted_edges)), ]
     
     # update first input selection for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
-    node_labels <- c()
-    for (index in 1:length(nodes_with_edges)) {
-      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
-      node_labels <- c(node_labels, next_node)
-    }
-    node_labels <- sort(node_labels)
-    
+    node_labels <- first_node_of_connections_that_can_be_removed(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
     # update second input selection for edge deletion
-    selected_node <- input$choose_first_connected_node_delete
-    selected_node <- nodelist_table[which(nodelist_table$label == selected_node), 2]
-    connected_nodes <- unique(c(
-      edgelist_table$to[which(edgelist_table$from == selected_node)],
-      edgelist_table$from[which(edgelist_table$to == selected_node)]
-    ))
-    connected_nodes_labels <- c()
-    for (index in 1:length(connected_nodes)) {
-      connected_nodes_labels <- c(connected_nodes_labels, nodelist_table$label[nodelist_table$id == connected_nodes[index]])
-    }
-    connected_nodes_labels <- sort(connected_nodes_labels)
-    
+    connected_nodes_labels <- second_node_of_connections_that_can_be_removed(input$choose_first_connected_node_delete, small_nodelist_for_graph, small_edgelist)
     updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
     
     # update first input selection for edge addition
-    nodes_that_can_be_connected <- c()
-    for(id in small_nodelist_for_table$id){
-      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
-      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
-      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
-        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
-      }
-    }
-    
+    nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     # inform user on the change
@@ -1677,64 +1495,35 @@ server <- function(input, output, session) {
     all_added_edges <<- all_added_edges[-c(nrow(all_added_edges)), ]
     
     # update first input selection for edge addition
-    nodes_that_can_be_connected <- c()
-    for(id in small_nodelist_for_table$id){
-      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
-      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
-      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
-        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
-      }
-    }
-    
+    nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     # update second input selection for edge addition
-    selected_node_for_addition <- input$choose_first_connected_node_add
-    selected_node_for_addition <- nodelist_table[which(nodelist_table$label == selected_node_for_addition), 2]
-    connected_nodes_add <- unique(c(
-      edgelist_table$to[which(edgelist_table$from == selected_node_for_addition)],
-      edgelist_table$from[which(edgelist_table$to == selected_node_for_addition)]
-    ))
-    connected_nodes_labels_add <- c()
-    for (index in 1:length(connected_nodes_add)) {
-      connected_nodes_labels_add <- c(connected_nodes_labels_add, nodelist_table$label[nodelist_table$id == connected_nodes_add[index]])
-    }
-    not_connected_nodes_labels <- setdiff(nodelist_table$label, connected_nodes_labels_add)
-    not_connected_nodes_labels <- not_connected_nodes_labels[-c(which(not_connected_nodes_labels == input$choose_first_connected_node_add))]
-    not_connected_nodes_labels <- sort(not_connected_nodes_labels)
-    
+    not_connected_nodes_labels <- calculate_nodes_that_can_be_connected_to_selected_node(input$choose_first_connected_node_add, small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_second_connected_node_add", choices = not_connected_nodes_labels, server = TRUE)
     
     #disable button if there is no possible node to connect to
     if(length(not_connected_nodes_labels) == 0){
       shinyjs::disable("confirm_edge_addition")
+      shinyjs::disable("confirm_edgeFeature_value")
+      shinyjs::disable("cancel_edge_addition")
     }else{
       shinyjs::enable("confirm_edge_addition")
+      shinyjs::enable("cancel_edge_addition")
+      if(ncol(edge_features_list)==0){
+        shinyjs::disable("confirm_edgeFeature_value")
+      }else{
+        shinyjs::enable("confirm_edgeFeature_value")
+      }
+      
     }
     
     # update first input selection for edge deletion - only node labels which have an edge
-    nodes_with_edges <- unique(c(small_edgelist$from, small_edgelist$to))
-    node_labels <- c()
-    for (index in 1:length(nodes_with_edges)) {
-      next_node <- small_nodelist_for_table$label[which(small_nodelist_for_table$id == nodes_with_edges[index])]
-      node_labels <- c(node_labels, next_node)
-    }
-    node_labels <- sort(node_labels)
+    node_labels <- first_node_of_connections_that_can_be_removed(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
     # update second input selection for edge deletion
-    selected_node <- input$choose_first_connected_node_delete
-    selected_node <- nodelist_table[which(nodelist_table$label == selected_node), 2]
-    connected_nodes <- unique(c(
-      edgelist_table$to[which(edgelist_table$from == selected_node)],
-      edgelist_table$from[which(edgelist_table$to == selected_node)]
-    ))
-    connected_nodes_labels <- c()
-    for (index in 1:length(connected_nodes)) {
-      connected_nodes_labels <- c(connected_nodes_labels, nodelist_table$label[nodelist_table$id == connected_nodes[index]])
-    }
-    connected_nodes_labels <- sort(connected_nodes_labels)
-    
+    connected_nodes_labels <- second_node_of_connections_that_can_be_removed(input$choose_first_connected_node_delete, small_nodelist_for_graph, small_edgelist)
     updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
     
     # inform user on the change
@@ -1748,6 +1537,10 @@ server <- function(input, output, session) {
     # disable undo button, if modification_history is now empty
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
+    }
+    # disable edge deletion if there are no edges
+    if(nrow(small_edgelist) == 0){
+      shinyjs::disable("confirm_edge_deletion")
     }
     
     # calculate the possible amount of edges between the nodes in small_nodelist_for_table
@@ -1810,15 +1603,7 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
     
     # update first input selection for edge addition
-    nodes_that_can_be_connected <- c()
-    for(id in small_nodelist_for_table$id){
-      amount_edges <- (length(which(small_edgelist$to == id)) + length(which(small_edgelist$from == id)))
-      # if there are 3 nodes in the graph each node can have a total of 3-1 edges
-      if(amount_edges < (nrow(small_nodelist_for_graph) - 1)){
-        nodes_that_can_be_connected <- c(nodes_that_can_be_connected, small_nodelist_for_graph$label[which(small_nodelist_for_graph$id==id)])
-      }
-    }
-    
+    nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_add", choices = nodes_that_can_be_connected, server = TRUE)
     
     # inform user on the change
@@ -2072,95 +1857,8 @@ server <- function(input, output, session) {
   # @return list with data.frame of nodes for presenting in a table, 
   #         data.frame of nodes for graph vis, and data.frame of edges for table and graph vis
   calculate_smaller_node_and_edge_list <- eventReactive(c(input$choose_patient, input$slider, input$radio, input$choose_patient_own_data, input$backward, input$forward),{ 
-    nodelist <- nodelist_table
-    edgelist <- edgelist_table
-    ### create sub node table ###
-    
-    degree <- c() # initialze "degree" vector
-    for(i in 1:length(nodelist$id)){
-      degree[i] <- nrow(edgelist[which(edgelist$from == nodelist$id[i]),]) + nrow(edgelist[which(edgelist$to == nodelist$id[i]),])
-    } 
-    degree <- data.frame(degree)
-    
-    # sort nodelist by XAI values (method is selected by radiobutton)
-    
-    if(input$radio == "degree_highlow"){
-      nodelist_for_table <- nodelist[order(cbind(nodelist,degree)[["degree"]], decreasing = TRUE),]
-    }
-    if(input$radio == "degree_lowhigh"){
-      nodelist_for_table <- nodelist[order(cbind(nodelist,degree)[["degree"]], decreasing = FALSE),]
-    }
-    if(input$radio == "rel_pos_highlow"){
-      nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = TRUE),]
-    }
-    if(input$radio == "rel_pos_lowhigh"){
-      nodelist_for_table <- nodelist[order(nodelist[["rel_pos"]], decreasing = FALSE),]
-    }
-    if(input$radio == "rel_pos_neg_highlow"){
-      nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = TRUE),]
-    }
-    if(input$radio == "rel_pos_neg_lowhigh"){
-      nodelist_for_table <- nodelist[order(nodelist[["rel_pos_neg"]], decreasing = FALSE),]
-    }
-  
-    
-    # only show the amount of nodes selected by the sliding bar
-    nodelist_for_table <- nodelist_for_table[1:input$slider,] 
-    
-    # for plotting the nodes, we also need the nodes they are connected to
-    nodelist_for_graph <- nodelist_for_table #we want to make the table for plotting bigger
-    # iterate over our nodes
-    for(ids in nodelist_for_table$id){
-      # check if node is in edgelist$from
-      if(length(which(edgelist$from == ids)) > 0){
-        # check if the connected nodes are in our nodelist
-        for(i in which(edgelist$from == ids)){
-          # if node id is not yet in table, rbind it to table and save in nodelist_for_graph
-          if(!(edgelist$to[i] %in% nodelist_for_graph$id)){
-            nodelist_for_graph <- rbind(nodelist_for_graph, nodelist[which(nodelist$id==edgelist$to[i]), ])
-          }
-        }
-      }
-      # check if node is in edgelist$to
-      if(length(which(edgelist$to == ids)) > 0){
-        # check if the connected nodes are in our nodelist
-        for(i in which(edgelist$to == ids)){
-          # if node id is not yet in table, rbind it to table and save in nodelist_for_graph
-          if(!(edgelist$from[i] %in% nodelist_for_graph$id)){
-            nodelist_for_graph <- rbind(nodelist_for_graph, nodelist[which(nodelist$id==edgelist$from[i]), ])
-          }
-        }
-      }           
-    }
-    # save in global variable
-    small_nodelist_for_table <<- nodelist_for_table
-    small_nodelist_for_graph <<- nodelist_for_graph
-    
-    ### create sub edge table ###    
-    
-    # vector to save the rows that contain a node we want
-    rows <- c()
-    
-    # iterate over our nodes
-    for(ids in nodelist_for_table$id){
-      # check if there is an entry in edgelist$from
-      if(length(which(edgelist$from == ids)) > 0){
-        rows <- append(rows, which(edgelist$from == ids))
-      }
-      # check if there is an entry in edgelist$to
-      if(length(which(edgelist$to == ids)) > 0){
-        rows <- append(rows, which(edgelist$to == ids))
-      }               
-    }
-    
-    # some rows could have been counted double so only save unique values
-    rows <- unique(rows) 
-    
-    # select rows
-    edgelist <- edgelist[rows,]
-    
-    # save in global variable
-    small_edgelist <<- edgelist
+    # calculate small node and edge lists
+    calculate_small_tables(nodelist_table, edgelist_table, input$radio, input$slider)
     
     # update node and edge table
     output$feature_overview <- renderDataTable({
@@ -2174,7 +1872,7 @@ server <- function(input, output, session) {
       HTML(" ")
     })
     
-    if(ncol(edgelist)<=3){
+    if(ncol(edgelist_table)<=3){
       shinyjs::hide("choose_edge_feature")
       shinyjs::hide("edgefeature_value")
       shinyjs::hide("confirm_edgeFeature_value")
