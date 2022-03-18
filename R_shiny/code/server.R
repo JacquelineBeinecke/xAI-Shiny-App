@@ -29,6 +29,11 @@ server <- function(input, output, session) {
       # get list of patient names
       patient_names <- getPatientNames(input$choose_a_dataset)
       
+      # train initial GNN on selected dataset
+      r <- POST(paste(api_path, "/gnn",sep=""), encode = "json")
+      # throw error if status returns something else than 200 (so if it didnt work)
+      stop_for_status(r)
+      
       
       # This is so that a new patient gets selected and the loading of a new graph gets triggered 
       updateSelectizeInput(session, "choose_patient", choices = patient_names, selected = patient_names[0])
