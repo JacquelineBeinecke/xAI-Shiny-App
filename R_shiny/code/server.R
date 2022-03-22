@@ -211,10 +211,12 @@ server <- function(input, output, session) {
     updateLog("Retraining GNN")
     
     # get retrained graph values
-    r <- GET(paste(api_path, "/nn_retrain",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
+    r <- POST(paste(api_path, "/nn_retrain",sep=""))
     stop_for_status(r)
-    graph <- fromJSON(content(r, type = "text"))
-    load_graph_from_json(graph)
+    
+    # Get node and edge relevance scores 
+    node_rel <<- getNodeRelevances(pat_id, graph_idx)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
@@ -281,10 +283,12 @@ server <- function(input, output, session) {
     updateLog("Predicting on GNN")
     
     # get retrained graph values
-    r <- GET(paste(api_path, "/nn_predict",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
+    r <- POST(paste(api_path, "/nn_predict",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
     stop_for_status(r)
-    graph <- fromJSON(content(r, type = "text"))
-    load_graph_from_json(graph)
+    
+    # Get node and edge relevance scores 
+    node_rel <<- getNodeRelevances(pat_id, graph_idx)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
@@ -328,6 +332,7 @@ server <- function(input, output, session) {
       if(nrow(small_edgelist) != 0){
         # update edge tooltip title (only if edges are given)
         small_edgelist$title <- update_edge_tooltip(nodelist_table, small_edgelist)
+        small_edgelist$color <- get_rel_colors_for_edge(small_edgelist)
         
         set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
         visNetwork(nodes, small_edgelist) %>%

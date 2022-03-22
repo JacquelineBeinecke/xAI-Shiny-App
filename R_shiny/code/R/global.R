@@ -125,7 +125,7 @@ getEdgeRelevances <- function(pat_id, graph_idx){
   r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
   stop_for_status(r)
   edge_rel <- data.frame(t(fromJSON(content(r, type = "text"))))
-  colnames(edge_rel) <- c("edge_ids", "rel_pos_edge", "rel_pos_neg_edge")
+  colnames(edge_rel) <- c("edge_ids", "rel_pos_edge")
   
   return(edge_rel)
 }  
@@ -247,6 +247,7 @@ update_edge_tooltip <- function(nodelist, edgelist){
   for(index in 1:ncol(edges_tooltip)){
     string <- paste0(string, "<p><b>", colnames(edges_tooltip)[index], ": ", "</b>", as.character(edges_tooltip[1:nrow(edges_tooltip), index]), "</p>")
   }
+  
   return(string)
 }
 
@@ -263,9 +264,11 @@ add_rel_to_nodelist <- function(nodes){
   # change colnames for rel_pos_node and rel_pos_neg_node if given
   if("rel_pos_node" %in% colnames(nodes)){
     colnames(nodes)[which(colnames(nodes)=="rel_pos_node")] <- "rel_pos"
+    nodes$rel_pos <- as.numeric(nodes$rel_pos)
   }
   if("rel_pos_neg_node" %in% colnames(nodes)){
     colnames(nodes)[which(colnames(nodes)=="rel_pos_neg_node")] <- "rel_pos_neg"
+    nodes$rel_pos_neg <- as.numeric(nodes$rel_pos_neg)
   }
   
   return(nodes)
@@ -274,18 +277,24 @@ add_rel_to_nodelist <- function(nodes){
 add_rel_to_edgelist <- function(edges){
   # sort node_relevances so they match the nodelist
   e_rel <- edge_rel[match(edges[["id"]], edge_rel[["edge_ids"]]),]
-  
+
   # now cbind relevances values to nodelist
-  edges <- cbind(edges, data.frame(e_rel[, 2:ncol(e_rel)]))
+  if(ncol(e_rel)>2){
+    edges <- cbind(edges, data.frame(e_rel[, 2:ncol(e_rel)]))
+  }else{
+    edges <- cbind(edges, rel_pos_edge = e_rel$rel_pos_edge)
+  }
   
   # change colnames for rel_pos_node and rel_pos_neg_node if given
   if("rel_pos_edge" %in% colnames(edges)){
     colnames(edges)[which(colnames(edges)=="rel_pos_edge")] <- "rel_pos"
+    edges$rel_pos <- as.numeric(edges$rel_pos)
   }
   if("rel_pos_neg_edge" %in% colnames(edges)){
     colnames(edges)[which(colnames(edges)=="rel_pos_neg_edge")] <- "rel_pos_neg"
+    edges$rel_pos_neg <- as.numeric(edges$rel_pos_neg)
   }
-  
+
   return(edges)
 }
 
@@ -293,14 +302,31 @@ add_rel_to_edgelist <- function(edges){
 ########  functions for colors   ############
 #############################################
 
+get_rel_colors_for_edge <- function(edgelist){
+  # add relevances to nodelist
+  edges <- add_rel_to_edgelist(edgelist)
+  
+  # scale values to [0.1,1]
+  values <- edges[["rel_pos"]]
+  values <- ((values-min(values))/(max(values)-min(values)))*(1-0.1)+0.1
+  
+  # generate grayscale
+  color <- vector()
+  for (i in 1:length(values)) {
+    color[i] <- rgb(1 - values[i],1 - values[i],1 - values[i])
+  }
+  
+  return(color)
+}
+
 get_rel_pos_colors_and_border <- function(nodelist){
   # add relevances to nodelist
   nodes <- add_rel_to_nodelist(nodelist)
   
   # define amount of different groups to differentiate by color and set the same amount of colors
   amount <- 5
-  pos_colors <- c("#FAFAFA", "#E0E0E0", "#9E9E9E", "#616161", "#212121") #light to dark (left to right)
-
+  #pos_colors <- c("#FAFAFA", "#E0E0E0", "#9E9E9E", "#616161", "#212121") #light to dark (left to right)
+  pos_colors <- c("#E1F5FE", "#B3E5FC", "#29B6F6", "#0288D1", "#01579B")
   # calculate intervals
   intervals <- cut(nodes$rel_pos, breaks = round(seq(from = min(nodes$rel_pos), to = max(nodes$rel_pos), by = (max(nodes$rel_pos)-min(nodes$rel_pos))/5),5), include.lowest = TRUE)
   # map a color to each group
