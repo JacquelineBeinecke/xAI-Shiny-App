@@ -108,6 +108,28 @@ getPatientNames <- function(dataset){
   return(patient_names)
 }
 
+getNodeRelevances <- function(pat_id, graph_idx){
+  # get node relevances from api
+  r <- GET(paste(api_path, "/importances/nodes",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
+  stop_for_status(r)
+  node_rel <- data.frame(t(fromJSON(content(r, type = "text"))))
+  colnames(node_rel) <- c("node_ids", "rel_pos_node", "rel_pos_neg_node")
+  node_rel[["rel_pos_node"]] <- as.numeric(node_rel[["rel_pos_node"]])
+  node_rel[["rel_pos_neg_node"]] <- as.numeric(node_rel[["rel_pos_neg_node"]])
+
+  return(node_rel)
+}
+
+getEdgeRelevances <- function(pat_id, graph_idx){
+  # get node relevances from api
+  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
+  stop_for_status(r)
+  edge_rel <- data.frame(t(fromJSON(content(r, type = "text"))))
+  colnames(edge_rel) <- c("edge_ids", "rel_pos_edge", "rel_pos_neg_edge")
+  
+  return(edge_rel)
+}  
+
 #############################################
 ######## functions for table vis ############
 #############################################
@@ -180,6 +202,9 @@ update_node_tooltip <- function(nodelist, edgelist){
   } 
   degree <- data.frame(degree)
   
+  # add relevances to nodelist
+  nodelist <- add_rel_to_nodelist(nodelist)
+ 
   # tooltip for nodes: create html String containing tooltip information: label, rel_pos, rel_pos_neg, degree, then create additional column "title" in nodes
   cols <- which(colnames(nodelist) %in% c("label", "rel_pos", "rel_pos_neg"))
   nodes_tooltip <- cbind(nodelist[, cols], degree)
@@ -189,6 +214,7 @@ update_node_tooltip <- function(nodelist, edgelist){
   for (index in 1:ncol(nodes_tooltip)) {
     html_string <- paste0(html_string, "<p><b>", colnames(nodes_tooltip)[index], ": ", "</b>", as.character(nodes_tooltip[1:nrow(nodes_tooltip), index]), "</p>")
   }
+  
   nodes_tooltip$title <- html_string
   nodes_tooltip$title
   
@@ -197,6 +223,9 @@ update_node_tooltip <- function(nodelist, edgelist){
 
 ## function to calculate edge_tooltip
 update_edge_tooltip <- function(nodelist, edgelist){
+  # add relevances to edgelist
+  edgelist <- add_rel_to_edgelist(edgelist)
+
   # tooltip for edges: translate node ids into label names, create html String containing tooltip information: "from-to", rel_pos, rel_pos_neg, then create additional column "title" in edges
   edges_tooltip <- edgelist[, which(colnames(edgelist) %in% c("from","to","rel_pos","rel_pos_neg"))]
   string <- c()
@@ -221,17 +250,57 @@ update_edge_tooltip <- function(nodelist, edgelist){
   return(string)
 }
 
+#############################################
+####### functions for relevances  ###########
+#############################################
+
+add_rel_to_nodelist <- function(nodes){
+  # sort node_relevances so they match the nodelist
+  n_rel <- node_rel[match(nodes[["id"]], node_rel[["node_ids"]]),]
+  # now cbind relevances values to nodelist
+  nodes <- cbind(nodes, data.frame(n_rel[, 2:ncol(n_rel)]))
+  
+  # change colnames for rel_pos_node and rel_pos_neg_node if given
+  if("rel_pos_node" %in% colnames(nodes)){
+    colnames(nodes)[which(colnames(nodes)=="rel_pos_node")] <- "rel_pos"
+  }
+  if("rel_pos_neg_node" %in% colnames(nodes)){
+    colnames(nodes)[which(colnames(nodes)=="rel_pos_neg_node")] <- "rel_pos_neg"
+  }
+  
+  return(nodes)
+}
+
+add_rel_to_edgelist <- function(edges){
+  # sort node_relevances so they match the nodelist
+  e_rel <- edge_rel[match(edges[["id"]], edge_rel[["edge_ids"]]),]
+  
+  # now cbind relevances values to nodelist
+  edges <- cbind(edges, data.frame(e_rel[, 2:ncol(e_rel)]))
+  
+  # change colnames for rel_pos_node and rel_pos_neg_node if given
+  if("rel_pos_edge" %in% colnames(edges)){
+    colnames(edges)[which(colnames(edges)=="rel_pos_edge")] <- "rel_pos"
+  }
+  if("rel_pos_neg_edge" %in% colnames(edges)){
+    colnames(edges)[which(colnames(edges)=="rel_pos_neg_edge")] <- "rel_pos_neg"
+  }
+  
+  return(edges)
+}
 
 #############################################
 ########  functions for colors   ############
 #############################################
 
 get_rel_pos_colors_and_border <- function(nodelist){
-  nodes <- nodelist
+  # add relevances to nodelist
+  nodes <- add_rel_to_nodelist(nodelist)
+  
   # define amount of different groups to differentiate by color and set the same amount of colors
   amount <- 5
   pos_colors <- c("#FAFAFA", "#E0E0E0", "#9E9E9E", "#616161", "#212121") #light to dark (left to right)
-  
+
   # calculate intervals
   intervals <- cut(nodes$rel_pos, breaks = round(seq(from = min(nodes$rel_pos), to = max(nodes$rel_pos), by = (max(nodes$rel_pos)-min(nodes$rel_pos))/5),5), include.lowest = TRUE)
   # map a color to each group
@@ -252,7 +321,9 @@ get_rel_pos_colors_and_border <- function(nodelist){
 }
 
 get_rel_pos_neg_colors_and_border <- function(nodelist){
-  nodes <- nodelist
+  # add relevances to nodelist
+  nodes <- add_rel_to_nodelist(nodelist)
+  
   # define amount of different groups to differentiate by color
   amount <- 5
   neg_colors <- c("#0D47A1", "#1976D2", "#2196F3", "#90CAF9", "#E3F2FD")
@@ -550,16 +621,28 @@ sort_by_user_selection <- function(sort_by, nodes, degree){
     nodelist_for_table <- nodes[order(cbind(nodes,degree)[["degree"]], decreasing = FALSE),]
   }
   if(sort_by == "rel_pos_highlow"){
-    nodelist_for_table <- nodes[order(nodes[["rel_pos"]], decreasing = TRUE),]
+    # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
+    nodelist_table <- nodes[match(node_rel[["node_ids"]], nodes[["id"]]),]
+    # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,node_rel)[["rel_pos_node"]], decreasing = TRUE),]
   }
   if(sort_by == "rel_pos_lowhigh"){
-    nodelist_for_table <- nodes[order(nodes[["rel_pos"]], decreasing = FALSE),]
+    # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
+    nodelist_table <- nodes[match(node_rel[["node_ids"]], nodes[["id"]]),]
+    # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,node_rel)[["rel_pos_node"]], decreasing = FALSE),]
   }
   if(sort_by == "rel_pos_neg_highlow"){
-    nodelist_for_table <- nodes[order(nodes[["rel_pos_neg"]], decreasing = TRUE),]
+    # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
+    nodelist_table <- nodes[match(node_rel[["node_ids"]], nodes[["id"]]),]
+    # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,node_rel)[["rel_pos_neg_node"]], decreasing = TRUE),]
   }
   if(sort_by == "rel_pos_neg_lowhigh"){
-    nodelist_for_table <- nodes[order(nodes[["rel_pos_neg"]], decreasing = FALSE),]
+    # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
+    nodelist_table <- nodes[match(node_rel[["node_ids"]], nodes[["id"]]),]
+    # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,node_rel)[["rel_pos_neg_node"]], decreasing = FALSE),]
   }
   
   return(nodelist_for_table)

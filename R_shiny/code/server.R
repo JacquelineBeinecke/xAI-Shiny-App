@@ -13,6 +13,9 @@ server <- function(input, output, session) {
   observeEvent(input$upload_dataset, {
       api_path <<- "http://127.0.0.1:5000"
       
+      # initially disable Interact tab by start of the shiny App 
+      shinyjs::js$disableTab("Interact")
+      
       # disable select dataset button until dataset is loaded
       shinyjs::disable("upload_dataset")
       # warning about switching to different dataset
@@ -33,7 +36,6 @@ server <- function(input, output, session) {
       r <- POST(paste(api_path, "/gnn",sep=""), encode = "json")
       # throw error if status returns something else than 200 (so if it didnt work)
       stop_for_status(r)
-      
       
       # This is so that a new patient gets selected and the loading of a new graph gets triggered 
       updateSelectizeInput(session, "choose_patient", choices = patient_names, selected = patient_names[0])
@@ -66,6 +68,10 @@ server <- function(input, output, session) {
      # update log about selected patient
      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
      updateLog(paste("Amount of modified graphs for this patient: ", graph_idx, sep=""))
+     
+     # Get node and edge relevance scores 
+     node_rel <<- getNodeRelevances(pat_id, graph_idx)
+     edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
      
      # enable restore button if graph_idx is larger than 0
      if(graph_idx > 0){
@@ -110,13 +116,10 @@ server <- function(input, output, session) {
   ###################################################
   ######## dis/enable/update tabs/functions #########
   ###################################################
-  
-  # initially disable Interact tab by start of the shiny App 
-  shinyjs::js$disableTab("Interact")
  
   # update radio buttons based on if rel_pos_neg or rel_pos is present
   observeEvent(ignoreInit = T,input$choose_patient,{
-  if(!("rel_pos_neg" %in% colnames(nodelist_table) & !("rel_pos" %in% colnames(nodelist_table)))){
+    if(!("rel_pos_neg_node" %in% colnames(node_rel) & !("rel_pos_node" %in% colnames(node_rel)))){
       shinyjs::disable("radio")
       updateRadioButtons(session, "radio",
                        choices = list("degree (high to low)" = "degree_highlow",
@@ -124,7 +127,7 @@ server <- function(input, output, session) {
                        selected = "degree_highlow")
  
     }
-    if(!("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
+    if(!("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
       shinyjs::enable("radio")
        updateRadioButtons(session, "radio",
                           choices = list("degree (high to low)" = "degree_highlow",
@@ -133,7 +136,7 @@ server <- function(input, output, session) {
                                          "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
                           selected = "rel_pos_neg_highlow")
     }
-    if(("rel_pos" %in% colnames(nodelist_table)) & !("rel_pos_neg" %in% colnames(nodelist_table))){
+    if(("rel_pos_node" %in% colnames(node_rel)) & !("rel_pos_neg_node" %in% colnames(node_rel))){
       shinyjs::enable("radio")
       updateRadioButtons(session, "radio",
                          choices = list("degree (high to low)" = "degree_highlow",
@@ -142,7 +145,7 @@ server <- function(input, output, session) {
                                         "rel_pos (low to high)" = "rel_pos_lowhigh"), 
                          selected = "rel_pos_highlow")
     }
-    if(("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
+    if(("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
       shinyjs::enable("radio")
       updateRadioButtons(session, "radio",
                          choices = list("degree (high to low)" = "degree_highlow",
@@ -330,7 +333,7 @@ server <- function(input, output, session) {
         visNetwork(nodes, small_edgelist) %>%
           visInteraction(zoomView = TRUE, navigationButtons = TRUE, multiselect = TRUE, hover = TRUE) %>%
           # long click on nodes to select multiple nodes or by "Ctrl" + Click
-          visIgraphLayout(layout = "layout_with_fr") %>%
+          visIgraphLayout(layout = "layout_as_star") %>% # vanessa had "layout_with_fr"
           visNodes(
             size = 45,
             color = list(background = "#f5f6f7", border = "#0a4ea3", highlight = list(background = "#f5f6f7", border = "red"), hover = list(background = "#f5f6f7", border = "red"))
@@ -1645,7 +1648,7 @@ server <- function(input, output, session) {
     ## "rel_pos"
     if(input$color_nodes == "rel_pos"){
       # inform user that rel_pos only has values 0
-      if(all(nodelist_table$rel_pos==0)){
+      if(all(node_rel$rel_pos_node==0)){
         output$error_only_zeros <- renderUI({
           HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos' only contains 0. Upload data on nodes with values for 'rel_pos' to use this function! </span>")
         })
@@ -1657,7 +1660,7 @@ server <- function(input, output, session) {
                col = "#0a4ea3", ncol = 3, pt.bg =colors_and_borders[["Colors"]])
         
         output$range <- renderUI({
-          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(nodelist_table$rel_pos), 1), ")", " - ", "(", round(max(nodelist_table$rel_pos), 1), ")", "</p>"))
+          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(node_rel$rel_pos_node), 1), ")", " - ", "(", round(max(node_rel$rel_pos_node), 1), ")", "</p>"))
         })
         
         # update graph
@@ -1668,7 +1671,7 @@ server <- function(input, output, session) {
     ## "rel_pos_neg"
     if(input$color_nodes == "rel_pos_neg"){
       # inform user that rel_pos_neg only has values 0
-      if(all(nodelist_table$rel_pos_neg==0)){
+      if(all(node_rel$rel_pos_neg_node==0)){
         output$error_only_zeros <- renderUI({
           HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos_neg' only contains 0. Upload data on nodes with values for 'rel_pos_neg' to use this function! </span>")
         })
@@ -1681,7 +1684,7 @@ server <- function(input, output, session) {
                col = "#0a4ea3", ncol = 4, pt.bg =c(colors_and_borders[["Neg_Colors"]], colors_and_borders[["Pos_Colors"]]) )
         
         output$range <- renderUI({
-          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(nodelist_table$rel_pos_neg), 1), ")", " - ", "(", round(max(nodelist_table$rel_pos_neg), 1), ")", "</p>"))
+          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(node_rel$rel_pos_neg_node), 1), ")", " - ", "(", round(max(node_rel$rel_pos_neg_node), 1), ")", "</p>"))
         })
         
         # update graph
@@ -1814,7 +1817,7 @@ server <- function(input, output, session) {
     input$radio
   ), {
     
-    if(("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
+    if(("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
       updateSelectInput(session, "color_nodes",
                         choices = list(
                           "one color (default)",
@@ -1824,7 +1827,7 @@ server <- function(input, output, session) {
                         selected = "one color (default)"
       )
     }
-    if(!("rel_pos" %in% colnames(nodelist_table)) & ("rel_pos_neg" %in% colnames(nodelist_table))){
+    if(!("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
       updateSelectInput(session, "color_nodes",
                         choices = list(
                           "one color (default)",
@@ -1833,7 +1836,7 @@ server <- function(input, output, session) {
                         selected = "one color (default)"
       )
     }
-    if(("rel_pos" %in% colnames(nodelist_table)) & !("rel_pos_neg" %in% colnames(nodelist_table))){
+    if(("rel_pos_node" %in% colnames(node_rel)) & !("rel_pos_neg_node" %in% colnames(node_rel))){
       updateSelectInput(session, "color_nodes",
                         choices = list(
                           "one color (default)",
@@ -1842,7 +1845,7 @@ server <- function(input, output, session) {
                         selected = "one color (default)"
       )
     }
-    if(!("rel_pos" %in% colnames(nodelist_table)) & !("rel_pos_neg" %in% colnames(nodelist_table))){
+    if(!("rel_pos_node" %in% colnames(node_rel)) & !("rel_pos_neg_node" %in% colnames(node_rel))){
       updateSelectInput(session, "color_nodes",
                         choices = list(
                           "one color (default)",
