@@ -1787,16 +1787,17 @@ server <- function(input, output, session) {
     
     # plot conf matrix
     TClass <- factor(c("False", "False", "True", "True"))
-    PClass <- factor(c("False", "True", "False", "True"))
+    PClass <- factor(c("False", "True", "False", "True"), levels = c("True","False"))
     Color  <- factor(c(0,1,1,0))
-    Y      <- c(values[1], values[2], values[3], values[4]) #(TN,FP,FN,TP)
+    Y      <- c(values[1], values[2], values[3], values[4]) #(TN,FN,FP,TP)
+    
     conf_matrix <- data.frame(TClass, PClass, Y, Color)
     
-    ggplot(data =  conf_matrix, mapping = aes(x = TClass, y = PClass)) +
+    ggplot(data =  conf_matrix, mapping = aes(x = PClass, y = TClass)) +
       geom_tile(aes(fill = Color, alpha = 0.2), colour = "white") +
       geom_text(aes(label = sprintf("%1.0f", Y)), size = 10) +
       scale_fill_manual(values=c("steelblue", "grey")) +
-      theme_bw() + theme(legend.position = "none") + labs(x = "True Class", y = "Predicted Class", title = "Confusion matrix") +
+      theme_bw() + theme(legend.position = "none") + labs(x = "Predicted Class", y = "True Class", title = "Confusion matrix") +
       theme(axis.line=element_blank(),axis.ticks=element_blank(),axis.text.x=element_text(size = 20, margin=margin(-10,0,0,0)),
             axis.text.y=element_text(angle = 90, size = 20, hjust = 0.5, margin=margin(0,-10,0,0)), axis.title.x = element_text(size = 20, margin=margin(0,0,0,0)),
             axis.title.y = element_text(size = 20, margin=margin(0,0,0,0)), title = element_text(size=20),
