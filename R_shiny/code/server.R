@@ -162,6 +162,9 @@ server <- function(input, output, session) {
   shinyjs::disable("backward")
   shinyjs::disable("forward")
   
+  # initially disable Interact tab by start of the shiny App 
+  shinyjs::js$disableTab("Interact")
+  
   ############################
   ######### Retrain ##########
   ############################
