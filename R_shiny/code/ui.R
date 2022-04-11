@@ -148,6 +148,8 @@ ui <- fluidPage(
                                         selectizeInput("choose_patient", h4("Select patient to see their graph:"), 
                                                        choices = c()
                                                        ),
+                                        # html output of patient information
+                                        htmlOutput("pat_info"),
                                         # placeholder for warning messages
                                         htmlOutput("warning_deletion")
                                       )

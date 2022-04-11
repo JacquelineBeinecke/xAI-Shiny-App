@@ -58,7 +58,7 @@ server <- function(input, output, session) {
     if(nrow(modification_history)>1){
       updateLog("Your modifications for this patient were not saved")
     }
-      
+     
      # get patient id
      pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
      
@@ -68,6 +68,12 @@ server <- function(input, output, session) {
      # update log about selected patient
      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
      updateLog(paste("Amount of modified graphs for this patient: ", graph_idx, sep=""))
+     
+     # show patient information
+     info <- getPatInfo(pat_id, graph_idx)
+     output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
+     # update log about selected patient
+     updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
      
      # Get node and edge relevance scores 
      node_rel <<- getNodeRelevances(pat_id, graph_idx)
@@ -112,6 +118,7 @@ server <- function(input, output, session) {
      # enable third tab
      shinyjs::js$enableTab("Interact")
    })
+  
   
   ###################################################
   ######## dis/enable/update tabs/functions #########
@@ -235,6 +242,21 @@ server <- function(input, output, session) {
       HTML(" ")
     })
     
+    # update patient information
+    info <- getPatInfo(pat_id, graph_idx)
+    output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
+    # update log about selected patient
+    updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
+    
+    # reset modification history
+    modification_history <<- data.frame(action = c(0), element = c(0))
+    all_deleted_nodes <<- data.frame()
+    all_deleted_nodes_edges <<- list()
+    all_deleted_edges <<- data.frame()
+    all_added_edges <<- data.frame()
+    all_added_nodes <<- data.frame()
+    
+    
   })
   
   ############################
@@ -307,6 +329,21 @@ server <- function(input, output, session) {
     output$warning_overwriting <- renderUI({
       HTML(" ")
     })
+    
+    # update patient information
+    info <- getPatInfo(pat_id, graph_idx)
+    output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
+    # update log about selected patient
+    updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
+    
+    # reset modification history
+    modification_history <<- data.frame(action = c(0), element = c(0))
+    all_deleted_nodes <<- data.frame()
+    all_deleted_nodes_edges <<- list()
+    all_deleted_edges <<- data.frame()
+    all_added_edges <<- data.frame()
+    all_added_nodes <<- data.frame()
+    
   })
   
 
@@ -435,6 +472,13 @@ server <- function(input, output, session) {
     
     # show warning for user
     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
+    
+    # update patient information
+    info <- getPatInfo(pat_id, graph_idx)
+    output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
+    # update log about selected patient
+    updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
+    
   })
   
   observeEvent(input$forward, {
@@ -501,6 +545,13 @@ server <- function(input, output, session) {
     
     # show warning for user
     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
+    
+    # update patient information
+    info <- getPatInfo(pat_id, graph_idx)
+    output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
+    # update log about selected patient
+    updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
+    
   })
   
   ##################################
@@ -738,6 +789,8 @@ server <- function(input, output, session) {
     id_edge <- edgelist_table$id[which((edgelist_table$from == id_first_node & edgelist_table$to == id_second_node) |
                                    (edgelist_table$to == id_first_node & edgelist_table$from == id_second_node))]
     
+    print(id_first_node)
+    print(id_second_node)
     # newly deleted edge and its attributes
     deleted_edge <- edgelist_table[which(edgelist_table$id == id_edge), ]
     

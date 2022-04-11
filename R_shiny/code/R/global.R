@@ -450,6 +450,7 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
     for(i in 2:nrow(modification_history)){
       action <- modification_history[i,1]
       element <- modification_history[i,2]
+      print(c(action,element))
       # get id of deleted node
       if(action == "deleted" & element == "node"){
         # edges going to this node also need to be removed, BEFORE the node gets deleted
@@ -468,6 +469,8 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
       }
       # get id of deleted edge
       if(action == "deleted" & element == "edge"){
+        print(all_deleted_edges[["from"]][counter_deleted_edges])
+        print(all_deleted_edges[["to"]][counter_deleted_edges])
         r <- DELETE(paste(api_path, "/graph_delete_edge",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, edge_index_left = all_deleted_edges[["from"]][counter_deleted_edges], edge_index_right = all_deleted_edges[["to"]][counter_deleted_edges]))
         stop_for_status(r)
         counter_deleted_edges = counter_deleted_edges + 1
@@ -512,6 +515,13 @@ delete_graphs <- function(pat_id, graph_idx, max_graph){
     r <- DELETE(paste(api_path, "/data/graph/",sep=""), query = list(patient_id = pat_id, graph_id = i))
     stop_for_status(r)
   }
+}
+
+getPatInfo <-function(pat_id, graph_idx){
+  r <- GET(paste(api_path, "/patients",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
+  stop_for_status(r)
+  info <- fromJSON(content(r, type = "text"), flatten = TRUE)
+  return(info)
 }
 
 ##########################################
