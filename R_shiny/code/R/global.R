@@ -308,14 +308,29 @@ get_rel_colors_for_edge <- function(edgelist){
   
   # scale values to [0.1,1]
   values <- edges[["rel_pos"]]
-  values <- ((values-min(values))/(max(values)-min(values)))*(1-0.1)+0.1
-  
-  # generate grayscale
-  color <- vector()
-  for (i in 1:length(values)) {
-    color[i] <- rgb(1 - values[i],1 - values[i],1 - values[i])
+  # define amount of different groups to differentiate by color and set the same amount of colors
+  amount <- 5
+  degree_colors_10 <- c("#e8e8e8", "#c8c8c8", "#ababab", "#919191", "#797979", "#646464", "#4f4f4f", "#3a3a3a", "#242424", "#000000")
+  degree_colors_5 <- c("#d4d4d4", "#b4b4b4", "#909090", "#636363", "#494848")
+
+  if(max(values)==0){
+    color <- rep("#000000", length(values))
+  }else{
+    if(max(values) <= 0.5){
+      intervals <- cut(values, breaks = seq(from = 0, to = max(values)+0.01, by = (max(values)+0.01)/5), include.lowest = TRUE)
+      # map a color to each group
+      names(degree_colors_5) <- levels(intervals)
+      # classify all nodes into groups with different colors
+      color <- degree_colors_5[intervals]
+    }else{
+      intervals <- cut(values, breaks = seq(from = 0, to = max(values)+0.01, by = (max(values)+0.01)/10), include.lowest = TRUE)
+      # map a color to each group
+      names(degree_colors_10) <- levels(intervals)
+      # classify all nodes into groups with different colors
+      color <- degree_colors_10[intervals]
+    }
   }
-  
+
   return(color)
 }
 
@@ -450,7 +465,6 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
     for(i in 2:nrow(modification_history)){
       action <- modification_history[i,1]
       element <- modification_history[i,2]
-      print(c(action,element))
       # get id of deleted node
       if(action == "deleted" & element == "node"){
         # edges going to this node also need to be removed, BEFORE the node gets deleted
@@ -469,8 +483,6 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
       }
       # get id of deleted edge
       if(action == "deleted" & element == "edge"){
-        print(all_deleted_edges[["from"]][counter_deleted_edges])
-        print(all_deleted_edges[["to"]][counter_deleted_edges])
         r <- DELETE(paste(api_path, "/graph_delete_edge",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, edge_index_left = all_deleted_edges[["from"]][counter_deleted_edges], edge_index_right = all_deleted_edges[["to"]][counter_deleted_edges]))
         stop_for_status(r)
         counter_deleted_edges = counter_deleted_edges + 1
@@ -754,4 +766,58 @@ calculate_small_tables <- function(nodes, edges, radio, slider){
   # save in global variable
   small_edgelist <<- edges[rows,]
   
+}
+
+
+####################################################################
+######## functions for enabeling and disabeling buttons ############
+####################################################################
+
+disable_all_action_buttons <- function(){
+  # jumping between graph states and undoing
+  shinyjs::disable("forward")
+  shinyjs::disable("backward")
+  shinyjs::disable("undo")
+  
+  # node/edge actions
+  shinyjs::disable("confirm_node_deletion")
+  shinyjs::disable("confirm_nodeFeature_value")
+  
+  shinyjs::disable("confirm_edge_deletion")
+  shinyjs::disable("confirm_edge_addition")
+  shinyjs::disable("confirm_edgeFeature_value")
+  shinyjs::disable("cancel_edge_addition")
+  
+  # uploading of dataset
+  shinyjs::disable("upload_dataset")
+  
+  # predict, retrain, download
+  shinyjs::disable("predict")
+  shinyjs::disable("retrain")
+  shinyjs::disable("download")
+  
+}
+
+enable_all_action_buttons <- function(){
+  # jumping between graph states and undoing
+  shinyjs::enable("forward")
+  shinyjs::enable("backward")
+  shinyjs::enable("undo")
+  
+  # node/edge actions
+  shinyjs::enable("confirm_node_deletion")
+  shinyjs::enable("confirm_nodeFeature_value")
+  
+  shinyjs::enable("confirm_edge_deletion")
+  shinyjs::enable("confirm_edge_addition")
+  shinyjs::enable("confirm_edgeFeature_value")
+  shinyjs::enable("cancel_edge_addition")
+  
+  # uploading of dataset
+  shinyjs::enable("upload_dataset")
+  
+  # predict, retrain, download
+  shinyjs::enable("predict")
+  shinyjs::enable("retrain")
+  shinyjs::enable("download")
 }

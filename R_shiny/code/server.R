@@ -11,6 +11,7 @@ server <- function(input, output, session) {
   
   # update selectize input for patients
   observeEvent(input$upload_dataset, {
+    print("upload dataset")
       api_path <<- "http://127.0.0.1:5000"
       
       # initially disable Interact tab by start of the shiny App 
@@ -53,7 +54,7 @@ server <- function(input, output, session) {
   
   # load graph of selected patient
   observeEvent(ignoreInit = TRUE, input$choose_patient, {
-    
+    print("upload patient")
     # write in log that changes were not saved 
     if(nrow(modification_history)>1){
       updateLog("Your modifications for this patient were not saved")
@@ -69,6 +70,18 @@ server <- function(input, output, session) {
      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
      updateLog(paste("Amount of modified graphs for this patient: ", graph_idx, sep=""))
      
+     # update backward anf forward button
+     if(graph_idx == 0){
+       shinyjs::disable("backward")
+       shinyjs::disable("forward")
+     }else{
+       shinyjs::enable("backward")
+       shinyjs::disable("forward")
+     }
+     
+     # empty warning when new patient is selected
+     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,graph_idx)})
+     
      # show patient information
      info <- getPatInfo(pat_id, graph_idx)
      output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
@@ -78,15 +91,6 @@ server <- function(input, output, session) {
      # Get node and edge relevance scores 
      node_rel <<- getNodeRelevances(pat_id, graph_idx)
      edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
-     
-     # enable restore button if graph_idx is larger than 0
-     if(graph_idx > 0){
-       # enable restore button
-       shinyjs::enable("backward")
-     }else{
-       # disable restore button
-       shinyjs::disable("backward")
-     }
      
      # get graph of selected dataset and patient
      r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
@@ -119,6 +123,16 @@ server <- function(input, output, session) {
      shinyjs::js$enableTab("Interact")
    })
   
+  #######################################################
+  ######## update node/edgelist for graph/table #########
+  #######################################################
+  
+  observeEvent(ignoreInit = T,c(
+    input$radio,
+    input$slider
+  ), {
+    calculate_smaller_node_and_edge_list()
+  })
   
   ###################################################
   ######## dis/enable/update tabs/functions #########
@@ -126,6 +140,7 @@ server <- function(input, output, session) {
  
   # update radio buttons based on if rel_pos_neg or rel_pos is present
   observeEvent(ignoreInit = T,input$choose_patient,{
+    print("update radio buttons")
     if(!("rel_pos_neg_node" %in% colnames(node_rel) & !("rel_pos_node" %in% colnames(node_rel)))){
       shinyjs::disable("radio")
       updateRadioButtons(session, "radio",
@@ -165,10 +180,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # disable backward button and forward button
-  shinyjs::disable("backward")
-  shinyjs::disable("forward")
-  
   # initially disable Interact tab by start of the shiny App 
   shinyjs::js$disableTab("Interact")
   
@@ -177,6 +188,7 @@ server <- function(input, output, session) {
   ############################
   
   observeEvent(input$retrain, {
+    print("retrain")
     # disable forward button
     shinyjs::disable("forward")
     
@@ -264,6 +276,7 @@ server <- function(input, output, session) {
   ############################
   
   observeEvent(input$predict, {
+    print("predict")
     # disable forward button
     shinyjs::disable("forward")
     
@@ -317,10 +330,7 @@ server <- function(input, output, session) {
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
-    
-    calculate_smaller_node_and_edge_list()
-    
-    
+
     # remove warning message about changes being removed when switching patients
     output$warning_deletion <- renderUI({
       HTML(" ")
@@ -353,15 +363,16 @@ server <- function(input, output, session) {
   
   
   # observe upload of edges to update the graph if new data was uploaded ----------------------------------
-  observeEvent(c( 
+  observeEvent(ignoreInit = T, c( 
     # the events that trigger this
+    input$retrain,
     input$backward,
     input$forward,
     input$slider,
     input$radio,
     input$choose_patient
     ), {
-  
+    print("vis graph")
     # create graph element
     output$graph <- renderVisNetwork({
       # create tooltip
@@ -378,7 +389,7 @@ server <- function(input, output, session) {
         visNetwork(nodes, small_edgelist) %>%
           visInteraction(zoomView = TRUE, navigationButtons = TRUE, multiselect = TRUE, hover = TRUE) %>%
           # long click on nodes to select multiple nodes or by "Ctrl" + Click
-          visIgraphLayout(layout = "layout_as_star") %>% # vanessa had "layout_with_fr"
+          visIgraphLayout(layout = "layout_with_fr") %>% # vanessa had "layout_with_fr"
           visNodes(
             size = 45,
             color = list(background = "#f5f6f7", border = "#0a4ea3", highlight = list(background = "#f5f6f7", border = "red"), hover = list(background = "#f5f6f7", border = "red"))
@@ -420,6 +431,10 @@ server <- function(input, output, session) {
   ########################################
   
   observeEvent(input$backward, {
+    print("backward")
+    # disable  all buttons until graph is loaded
+    disable_all_action_buttons()
+    
     if(nrow(modification_history)>1){
       updateLog("Your modifications for this graph were not saved")
     }
@@ -463,12 +478,15 @@ server <- function(input, output, session) {
     # get the amount of modified graphs saved for this patient
     max_graph <- get_max_graphs(pat_id)
     
+    # enable all buttons now that data is loaded
+    enable_all_action_buttons()
+    
+    # disable backward button if there is no later graph
     if(graph_idx == 0){
       shinyjs::disable("backward")
     }
-    
-    # enable forward button
-    shinyjs::enable("forward")
+    # disable undo button 
+    shinyjs::disable("undo")
     
     # show warning for user
     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
@@ -482,6 +500,10 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$forward, {
+    print("forward")
+    # disable all buttons until graph is loaded
+    disable_all_action_buttons()
+    
     if(nrow(modification_history)>1){
       updateLog("Your modifications for this graph were not saved")
     }
@@ -536,12 +558,18 @@ server <- function(input, output, session) {
     # get the amount of modified graphs saved for this patient
     max_graph <- get_max_graphs(pat_id)
     
+    # enable all buttons now that data is loaded
+    enable_all_action_buttons()
+    
     if(graph_idx == max_graph){
       shinyjs::disable("forward")
     }
-    if(graph_idx != 0){
-      shinyjs::enable("backward")
+    if(graph_idx == 0){
+      shinyjs::disable("backward")
     }
+    
+    # disable undo button 
+    shinyjs::disable("undo")
     
     # show warning for user
     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
@@ -566,8 +594,7 @@ server <- function(input, output, session) {
     input$backward,
     input$forward
     ), {
-    #this makes sure that the smaller dataset gets calculated before the initialization of dropdowns
-    calculate_smaller_node_and_edge_list()
+      print("init first dropdown")
      
     # input for node deletion
     updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
@@ -619,6 +646,7 @@ server <- function(input, output, session) {
     input$choose_first_connected_node_delete 
     input$choose_first_connected_node_add
     }, {
+      print("init second dropdown")
     # second input for edge deletion - only containing nodes that are connected to the first selected node
     connected_nodes_labels <- second_node_of_connections_that_can_be_removed(input$choose_first_connected_node_delete, small_nodelist_for_graph, small_edgelist)
     updateSelectizeInput(session, "choose_second_connected_node_delete", choices = connected_nodes_labels, server = TRUE)
@@ -646,7 +674,8 @@ server <- function(input, output, session) {
   
   
   # initialize dropdown of node attributes for node addition ----------------------------------
-  observeEvent(input$choose_patient, {
+  observeEvent(ignoreInit = T, input$choose_patient, {
+    print("init node attributes")
     node_features <- node_features_list
     feature_names <- colnames(node_features)
     updateSelectizeInput(session, "choose_node_feature", choices = feature_names, server = TRUE)
@@ -654,7 +683,8 @@ server <- function(input, output, session) {
   
   
   # initialize dropdown of edge attributes for edge addition ----------------------------------
-  observeEvent(ignoreInit = TRUE, input$choose_patient, {
+  observeEvent(ignoreInit = T, input$choose_patient, {
+    print("init edge attributes")
     edge_features <- edge_features_list
     feature_names <- colnames(edge_features)
     updateSelectizeInput(session, "choose_edge_feature", choices = feature_names, server = TRUE)
@@ -672,6 +702,7 @@ server <- function(input, output, session) {
   
   # on button click "Delete Node" ----------------------------------
   observeEvent(input$confirm_node_deletion, {
+    print("node deletion")
     # update log about selected node to delete
     updateLog(paste("Node deleted: ", input$choose_node_to_delete, sep=""))
     
@@ -777,11 +808,13 @@ server <- function(input, output, session) {
   
   # on button click "Delete Edge" ----------------------------------
   observeEvent(input$confirm_edge_deletion, {
-    # update log about selected patient
-    updateLog(paste("Edge deleted between nodes: ", input$choose_first_connected_node_delete, " and ", input$choose_second_connected_node_delete, sep=""))
     
     # disable delete button until deletion is done
     shinyjs::disable("confirm_edge_deletion")
+    print("edge deletion")
+    # update log about selected patient
+    updateLog(paste("Edge deleted between nodes: ", input$choose_first_connected_node_delete, " and ", input$choose_second_connected_node_delete, sep=""))
+    
     
     # read which connected nodes have been selected by the user for deletion
     id_first_node <- nodelist_table$id[which(nodelist_table$label == input$choose_first_connected_node_delete)]
@@ -789,8 +822,6 @@ server <- function(input, output, session) {
     id_edge <- edgelist_table$id[which((edgelist_table$from == id_first_node & edgelist_table$to == id_second_node) |
                                    (edgelist_table$to == id_first_node & edgelist_table$from == id_second_node))]
     
-    print(id_first_node)
-    print(id_second_node)
     # newly deleted edge and its attributes
     deleted_edge <- edgelist_table[which(edgelist_table$id == id_edge), ]
     
@@ -803,6 +834,7 @@ server <- function(input, output, session) {
     small_edgelist <<- small_edgelist[-c(which(small_edgelist$id == deleted_edge$id)), ]
     
     # update tooltip information of nodes, as their degree has changed
+    
     update_nodes <- small_nodelist_for_graph
     update_nodes$title <- update_node_tooltip(update_nodes, edgelist_table)
 
@@ -860,7 +892,7 @@ server <- function(input, output, session) {
   
   # on button click "Enter" ----------------------------------
   observeEvent(input$confirm_edgeFeature_value, {
-    
+    print("enter edge feature value")
     # read entered values for edge attributes
     selected_feature <- input$choose_edge_feature
     feature_value <- input$edgefeature_value
@@ -903,6 +935,7 @@ server <- function(input, output, session) {
   
   # on button click "Add Edge" ----------------------------------
   observeEvent(input$confirm_edge_addition, {
+    print("add edge")
     shinyjs::disable("confirm_edge_addition")
     
     # read selected nodes ids for edge addition and the entered feature values
@@ -1076,7 +1109,7 @@ server <- function(input, output, session) {
   
   # on button click "Cancel" ----------------------------------
   observeEvent(input$cancel_edge_addition, {
-    
+    print("cancel edge addition")
     # clear numeric input
     updateNumericInput(session, "edgefeature_value", value = 0)
     
@@ -1114,7 +1147,7 @@ server <- function(input, output, session) {
   
   # on button click "Enter" ----------------------------------
   observeEvent(input$confirm_nodeFeature_value, {
-    
+    print("enter node feature value")
     # read entered values for node attributes
     selected_feature <- input$choose_node_feature
     feature_value <- input$nodefeature_value
@@ -1177,6 +1210,9 @@ server <- function(input, output, session) {
   
   # on button click "Add Node" ----------------------------------
   observeEvent(input$confirm_node_addition, {
+    print("add node")
+    shinyjs::disable("confirm_node_addition")
+    
     label <- input$new_node_label
     feature_value <- input$nodefeature_value
     selected_feature <- input$choose_node_feature
@@ -1300,6 +1336,8 @@ server <- function(input, output, session) {
                 HTML("<span style='color:red; font-size:14px'> <br/> Warning: If you choose a different patient now, all your modifications will be lost. Please save your modifications by either pressing predict or retrain. </span>")
               })
             }
+            # enable node feature addition now that addition of last node is done
+            shinyjs::enable("confirm_node_addition")
             
           } else {
             # error message when a feature value is entered and requires to press "enter" first
@@ -1324,7 +1362,7 @@ server <- function(input, output, session) {
   
   # on button click "Cancel" ----------------------------------
   observeEvent(input$cancel_node_addition, {
-    
+    print("cancel node addition")
     # clear text / numeric input fields
     updateTextInput(session, "new_node_label", value = "", placeholder = "e.g. ABCC2")
     updateNumericInput(session, "nodefeature_value", value = 0)
@@ -1351,7 +1389,8 @@ server <- function(input, output, session) {
   ##################################
   
   # disable undo-button when modification_history is empty, enable undo-button when there are actions to reverse ----------------------------------
-  observeEvent(c(input$undo, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$predict, input$retrain, input$choose_patient), {
+  observeEvent(ignoreInit = T, c(input$undo, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$predict, input$retrain, input$choose_patient), {
+    print("update undo button")
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
       # remove warning message about changes being removed when switching patients
@@ -1366,6 +1405,7 @@ server <- function(input, output, session) {
   
   # on button click "undo" - revert the last user modification action ----------------------------------
   observeEvent(input$undo, {
+    print("undo")
     # update log about selected dataset
     updateLog(paste("The following action was undone: ", modification_history[nrow(modification_history), 2]," ", modification_history[nrow(modification_history), 1], sep=""))
     
@@ -1795,7 +1835,8 @@ server <- function(input, output, session) {
   }
   
   # only calculate new legend in these cases 
-  observeEvent(c(input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo, input$slider, input$radio),{
+  observeEvent(ignoreInit = T, c(input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo, input$slider, input$radio),{
+    print("update node colors and legend")
     calculate_legend_and_color_nodes()
   })
   
@@ -1817,6 +1858,7 @@ server <- function(input, output, session) {
   #######################################
   
   sens_spec <- eventReactive(c(input$upload_dataset, input$retrain, input$predict),{
+    print("get performance scores")
     # get retrained graph values
     r <- GET(paste(api_path, "/data/performance_values",sep=""))
     stop_for_status(r)
@@ -1831,6 +1873,7 @@ server <- function(input, output, session) {
   
   
   calculate_conf_matrix <- eventReactive(c(input$upload_dataset, input$retrain, input$predict),{
+    print("calculate confusion matrix")
     # get retrained graph values
     r <- GET(paste(api_path, "/data/performance_values",sep=""))
     stop_for_status(r)
@@ -1878,7 +1921,7 @@ server <- function(input, output, session) {
     input$slider,
     input$radio
   ), {
-    
+    print("reset coloring")
     if(("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
       updateSelectInput(session, "color_nodes",
                         choices = list(
@@ -1926,7 +1969,8 @@ server <- function(input, output, session) {
   # reactive expression that extracts and prepares the current data on nodes and edges ----------------------------------
   # @return list with data.frame of nodes for presenting in a table, 
   #         data.frame of nodes for graph vis, and data.frame of edges for table and graph vis
-  calculate_smaller_node_and_edge_list <- eventReactive(c(input$choose_patient, input$slider, input$radio, input$choose_patient_own_data, input$backward, input$forward),{ 
+  calculate_smaller_node_and_edge_list <- function(){ 
+    print("inside eventReactive")
     # calculate small node and edge lists
     calculate_small_tables(nodelist_table, edgelist_table, input$radio, input$slider)
     
@@ -1941,7 +1985,12 @@ server <- function(input, output, session) {
     output$hint_adding_edge <- renderUI({
       HTML(" ")
     })
-    
+    #print(input$slider)
+    #print(head(nodelist_table))
+    #print(head(edgelist_table))
+    #print(nrow(small_nodelist_for_graph))
+    #print(nrow(small_edgelist))
+    #print(nrow(small_nodelist_for_table))
     if(ncol(edgelist_table)<=3){
       shinyjs::hide("choose_edge_feature")
       shinyjs::hide("edgefeature_value")
@@ -1952,7 +2001,7 @@ server <- function(input, output, session) {
         HTML("<span style='color:dimgray; font-size:14px; font-style:italic'> Hint: After adding the edge, its attribute values can't be changed! </span>")
       })
     }
-  })
+  }
   
   ##################################
   ####### Download Results #########
