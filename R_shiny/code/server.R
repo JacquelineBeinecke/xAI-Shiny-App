@@ -131,6 +131,7 @@ server <- function(input, output, session) {
     input$radio,
     input$slider
   ), {
+    print("update nodelist because slider or radio changed")
     calculate_smaller_node_and_edge_list()
   })
   
@@ -455,6 +456,10 @@ server <- function(input, output, session) {
     
     load_graph_from_json(graph)
     
+    # Get node and edge relevance scores 
+    node_rel <<- getNodeRelevances(pat_id, graph_idx)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
     updateSliderInput(session, "slider", max=max, step=1)
@@ -523,6 +528,10 @@ server <- function(input, output, session) {
     graph <- fromJSON(content(r, type = "text"))
     
     load_graph_from_json(graph)
+    
+    # Get node and edge relevance scores 
+    node_rel <<- getNodeRelevances(pat_id, graph_idx)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
@@ -733,10 +742,6 @@ server <- function(input, output, session) {
       small_edgelist <<- small_edgelist[-c(which(small_edgelist$to == deleted_node$id)), ]
     }
 
-    # update amount of nodes for Sliding bar
-    max_nodes = length(nodelist_table[[1]])
-    updateSliderInput(session, "slider", max=max_nodes, step=1)
-    
     # update tooltip information of nodes, as their degree has changed
     update_nodes_graph <- small_nodelist_for_graph
     update_nodes_graph$title <- update_node_tooltip(update_nodes_graph, edgelist_table)
@@ -798,6 +803,11 @@ server <- function(input, output, session) {
         HTML("<span style='color:red; font-size:14px'> <br/> Warning: If you choose a different patient now, all your modifications will be lost. Please save your modifications by either pressing predict or retrain. </span>")
       })
     }
+    
+    # update amount of nodes for Sliding bar
+    max_nodes = length(nodelist_table[[1]])
+    updateSliderInput(session, "slider", max=max_nodes, step=1)
+    
   })
   
   
@@ -1985,12 +1995,7 @@ server <- function(input, output, session) {
     output$hint_adding_edge <- renderUI({
       HTML(" ")
     })
-    #print(input$slider)
-    #print(head(nodelist_table))
-    #print(head(edgelist_table))
-    #print(nrow(small_nodelist_for_graph))
-    #print(nrow(small_edgelist))
-    #print(nrow(small_nodelist_for_table))
+    
     if(ncol(edgelist_table)<=3){
       shinyjs::hide("choose_edge_feature")
       shinyjs::hide("edgefeature_value")
@@ -2001,6 +2006,7 @@ server <- function(input, output, session) {
         HTML("<span style='color:dimgray; font-size:14px; font-style:italic'> Hint: After adding the edge, its attribute values can't be changed! </span>")
       })
     }
+    
   }
   
   ##################################

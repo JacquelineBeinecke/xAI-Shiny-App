@@ -669,28 +669,56 @@ sort_by_user_selection <- function(sort_by, nodes, degree){
     nodelist_for_table <- nodes[order(cbind(nodes,degree)[["degree"]], decreasing = FALSE),]
   }
   if(sort_by == "rel_pos_highlow"){
+    # remove nodes from node_rel that were removed by node_delete
+    rem_nodes_idx <- which(!(node_rel[["node_ids"]] %in% nodes[["id"]]))
+    if(length(rem_nodes_idx)>0){
+      rels <- node_rel[-rem_nodes_idx,]
+    }else{
+      rels <- node_rel
+    }
     # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
-    nodelist_table <- nodes[match(node_rel[["node_ids"]], nodes[["id"]]),]
+    nodelist_table <- nodes[match(rels[["node_ids"]], nodes[["id"]]),]
     # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
-    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,node_rel)[["rel_pos_node"]], decreasing = TRUE),]
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["rel_pos_node"]], decreasing = TRUE),]
   }
   if(sort_by == "rel_pos_lowhigh"){
+    # remove nodes from node_rel that were removed by node_delete
+    rem_nodes_idx <- which(!(node_rel[["node_ids"]] %in% nodes[["id"]]))
+    if(length(rem_nodes_idx)>0){
+      rels <- node_rel[-rem_nodes_idx,]
+    }else{
+      rels <- node_rel
+    }
     # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
-    nodelist_table <- nodes[match(node_rel[["node_ids"]], nodes[["id"]]),]
+    nodelist_table <- nodes[match(rels[["node_ids"]], nodes[["id"]]),]
     # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
-    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,node_rel)[["rel_pos_node"]], decreasing = FALSE),]
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["rel_pos_node"]], decreasing = FALSE),]
   }
   if(sort_by == "rel_pos_neg_highlow"){
+    # remove nodes from node_rel that were removed by node_delete
+    rem_nodes_idx <- which(!(node_rel[["node_ids"]] %in% nodes[["id"]]))
+    if(length(rem_nodes_idx)>0){
+      rels <- node_rel[-rem_nodes_idx,]
+    }else{
+      rels <- node_rel
+    }
     # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
-    nodelist_table <- nodes[match(node_rel[["node_ids"]], nodes[["id"]]),]
+    nodelist_table <- nodes[match(rels[["node_ids"]], nodes[["id"]]),]
     # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
-    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,node_rel)[["rel_pos_neg_node"]], decreasing = TRUE),]
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["rel_pos_neg_node"]], decreasing = TRUE),]
   }
   if(sort_by == "rel_pos_neg_lowhigh"){
+    # remove nodes from node_rel that were removed by node_delete
+    rem_nodes_idx <- which(!(node_rel[["node_ids"]] %in% nodes[["id"]]))
+    if(length(rem_nodes_idx)>0){
+      rels <- node_rel[-rem_nodes_idx,]
+    }else{
+      rels <- node_rel
+    }
     # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
-    nodelist_table <- nodes[match(node_rel[["node_ids"]], nodes[["id"]]),]
+    nodelist_table <- nodes[match(rels[["node_ids"]], nodes[["id"]]),]
     # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
-    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,node_rel)[["rel_pos_neg_node"]], decreasing = FALSE),]
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["rel_pos_neg_node"]], decreasing = FALSE),]
   }
   
   return(nodelist_for_table)
@@ -716,6 +744,7 @@ calculate_small_tables <- function(nodes, edges, radio, slider){
   
   # for plotting the nodes, we also need the nodes they are connected to
   nodelist_for_graph <- nodelist_for_table #we want to make the table for plotting bigger
+
   # iterate over our nodes
   for(ids in nodelist_for_table$id){
     # check if node is in edgelist$from
@@ -728,6 +757,7 @@ calculate_small_tables <- function(nodes, edges, radio, slider){
         }
       }
     }
+    
     # check if node is in edgelist$to
     if(length(which(edges$to == ids)) > 0){
       # check if the connected nodes are in our nodelist
@@ -742,7 +772,6 @@ calculate_small_tables <- function(nodes, edges, radio, slider){
   # save in global variable
   small_nodelist_for_table <<- nodelist_for_table
   small_nodelist_for_graph <<- nodelist_for_graph
-  
   ### create sub edge table ###    
   
   # vector to save the rows that contain a node we want

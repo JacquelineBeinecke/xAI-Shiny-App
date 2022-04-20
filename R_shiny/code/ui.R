@@ -73,7 +73,7 @@ ui <- fluidPage(
                                        ),
                                        div(
                                          tags$h3("Upload Graph Data"),
-                                         tags$p("Upload the data for nodes and edges, including their attributes and the computed relevance values from xAI methods OR choose from a list of predefined datasets.")
+                                         tags$p("Choose one of our pre-selected datasets to upload into the UI.")
                                        )
                                    )
                                )
