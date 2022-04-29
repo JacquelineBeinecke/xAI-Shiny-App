@@ -26,7 +26,7 @@ ui <- fluidPage(
   shinyjs::inlineCSS(app_css),
   
   # header with title of the software
-  titlePanel(h1("Interactive xAI Platform", style = {"color: white; background-color:#1dbbf4; padding: 20px;"})),
+  titlePanel(h1("Interactive XAI Platform", style = {"color: white; background-color:#1dbbf4; padding: 20px;"})),
   
   # page structure with multiple tabs
   navbarPage("Menu", id = "tabs",
@@ -39,7 +39,7 @@ ui <- fluidPage(
                         column(8,
                                shiny::HTML("<br><center> <h3> What you'll find here. </h3> </center><br>"),
                                shiny::HTML("<p><center>
-                      The Interactive xAI Platform can be used to better understand, validate and improve the decision making of Graph Neural Networks (GNN).
+                      The Interactive XAI Platform can be used to better understand, validate and improve the decision making of Graph Neural Networks (GNN).
                       </p></center>"),
                                shiny::HTML("<p><center>
                       Therefore, this software allows you to visually explore and modify the graph data in order to test the resulting effects on the GNN prediction.
@@ -72,8 +72,8 @@ ui <- fluidPage(
                                          tags$img(src = "one.png", width = "50px", height = "50px")
                                        ),
                                        div(
-                                         tags$h3("Upload Graph Data"),
-                                         tags$p("Choose one of our pre-selected datasets to upload into the UI.")
+                                         tags$h3("Select Graph Data"),
+                                         tags$p("Choose one of our pre-selected datasets to load into the UI.")
                                        )
                                    )
                                )
@@ -114,8 +114,8 @@ ui <- fluidPage(
                                          tags$img(src = "four.png", width = "50px", height = "50px")
                                        ),
                                        div(
-                                         tags$h3("Re-train or Predict"),
-                                         tags$p("Use the modified graph data for re-training or predictions on your GNN.")
+                                         tags$h3("Retrain or Predict"),
+                                         tags$p("Use the modified graph data for retraining or predictions on your GNN.")
                                        )
                                    )
                                )
@@ -123,7 +123,7 @@ ui <- fluidPage(
                       )
              ),
              # TAB 2
-             tabPanel("Upload Data",
+             tabPanel("Select Data",
                       fluidRow(column(12,
                                       # choose predefined datasets 
                                       wellPanel(
@@ -160,21 +160,31 @@ ui <- fluidPage(
                       fluidRow(
                         column(12,
                                column(7,
-                                      radioButtons("radio", label = HTML("<h3>","<p style='line-height:60%'>","Select relevance values to sort nodes by", "</p></h3>", "<h5>", "(only available if relevance values are present)","</h5>"),
-                                                   choices = list("degree (high to low)" = "degree_highlow",
-                                                                  "degree (low to high)" = "degree_lowhigh",
-                                                                  "rel_pos (high to low)" = "rel_pos_highlow",
-                                                                  "rel_pos (low to high)" = "rel_pos_lowhigh",
-                                                                  "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
-                                                                  "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
-                                                   selected = "degree_highlow", width = "500px"),
+                                      column(6,
+                                             radioButtons("radio", label = HTML("<h3>","Sort nodes by", "</h3>"),
+                                                          choices = list("degree (high to low)" = "degree_highlow",
+                                                                         "degree (low to high)" = "degree_lowhigh",
+                                                                         "rel_pos (high to low)" = "rel_pos_highlow",
+                                                                         "rel_pos (low to high)" = "rel_pos_lowhigh",
+                                                                         "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
+                                                                         "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
+                                                          selected = "degree_highlow", width = "500px"),
+                                             
+                                             
+                                      ),
+                                      column(6,
+                                             radioButtons("radio_edge_rel", label = HTML("<h3>","Select XAI Method for edges", "</h3>"),
+                                                          choices = list("Saliency" = "saliency",
+                                                                         "Integrated Gradients" = "ig"), 
+                                                          selected = "saliency", width = "500px")
+                                      ),
                                       #default nodes to display is 3 (value = 3)
                                       #default max is 100 but this gets updated as soon as node and edge data are uploaded
                                       #then the max value will always be the amount of nodes in the data
                                       sliderInput("slider", label = HTML("<h3>","<p style='line-height:60%'>","Select how many nodes to display","</p></h3>", "<h5>","(their next neighbours will also be displayed in the graph)","</h5>"), 
                                                   min = 1, max = 100, value = 3, width = "500px", step=1) 
-                                      
-                               ),
+                                    ),
+                               
                                column(5, align = "center",
                                       wellPanel(
                                         fluidRow(
@@ -187,7 +197,7 @@ ui <- fluidPage(
                                                  tags$div(style = "display:inline-block",
                                                           downloadButton("download", label = "Download", class = "btn-success"),
                                                           actionButton("predict", "Predict", class = "btn-primary"),
-                                                          actionButton("retrain", "Re-train", class = "btn-primary")
+                                                          actionButton("retrain", "Retrain", class = "btn-primary")
                                                  )
                                                  
                                           )

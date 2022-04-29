@@ -70,7 +70,7 @@ server <- function(input, output, session) {
      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
      updateLog(paste("Amount of modified graphs for this patient: ", graph_idx, sep=""))
      
-     # update backward anf forward button
+     # update backward and forward button
      if(graph_idx == 0){
        shinyjs::disable("backward")
        shinyjs::disable("forward")
@@ -90,7 +90,7 @@ server <- function(input, output, session) {
      
      # Get node and edge relevance scores 
      node_rel <<- getNodeRelevances(pat_id, graph_idx)
-     edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+     edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
      
      # get graph of selected dataset and patient
      r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
@@ -122,6 +122,7 @@ server <- function(input, output, session) {
      # enable third tab
      shinyjs::js$enableTab("Interact")
    })
+  
   
   #######################################################
   ######## update node/edgelist for graph/table #########
@@ -239,7 +240,7 @@ server <- function(input, output, session) {
     
     # Get node and edge relevance scores 
     node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
@@ -327,7 +328,7 @@ server <- function(input, output, session) {
     
     # Get node and edge relevance scores 
     node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
@@ -458,7 +459,7 @@ server <- function(input, output, session) {
     
     # Get node and edge relevance scores 
     node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
@@ -531,7 +532,7 @@ server <- function(input, output, session) {
     
     # Get node and edge relevance scores 
     node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
@@ -1736,6 +1737,24 @@ server <- function(input, output, session) {
     }
   }
   
+  ########################################################
+  ######## select xai method for edges and color #########
+  ########################################################
+  
+  observeEvent(ignoreInit = T, c(input$radio_edge_rel), {
+    # get patient id
+    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    # get selected edge relevances
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
+
+    # update edge tooltip title (only if edges are given)
+    small_edgelist$title <- update_edge_tooltip(nodelist_table, small_edgelist)
+    small_edgelist$color <- get_rel_colors_for_edge(small_edgelist)
+
+    # update graph
+    visNetworkProxy("graph") %>%
+      visUpdateEdges(edges = small_edgelist)
+  })
   
   ##################################
   ######### Color nodes ############

@@ -44,7 +44,7 @@ load_graph_from_json <- function(json_graph){
   
   nodelist <- as.data.frame(graph_df$data[[1]])
   colnames(nodelist) <- graph_df$columns[[1]]
-  #nodelist <- read.csv("E:\\Uni\\Doktor-Goettingen\\Data\\kirc_random_ui_MAX\\kirc_random_nodes_ui_format_100.csv")
+  #nodelist <- read.csv("E:\\Uni\\Doktor-Goettingen\\Data\\synthetic_ui\\synthetic_egdes_ui_format_0.csv")
   # order data frame by node label from A-Z
   nodelist <- nodelist[order(nodelist$label), ]
   
@@ -65,7 +65,7 @@ load_graph_from_json <- function(json_graph){
   
   edgelist <- as.data.frame(graph_df$data[[2]])
   colnames(edgelist) <- graph_df$columns[[2]]
-  #edgelist <- read.csv("E:\\Uni\\Doktor-Goettingen\\Data\\kirc_random_ui_MAX\\kirc_random_egdes_ui_format_100.csv")
+  #edgelist <- read.csv("E:\\Uni\\Doktor-Goettingen\\Data\\synthetic_ui\\synthetic_nodes_ui_format_0.csv")
   # order data frame from A-Z
   edgelist <- edgelist[order(edgelist$from), ]
   
@@ -120,9 +120,9 @@ getNodeRelevances <- function(pat_id, graph_idx){
   return(node_rel)
 }
 
-getEdgeRelevances <- function(pat_id, graph_idx){
+getEdgeRelevances <- function(pat_id, graph_idx, method){
   # get node relevances from api
-  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
+  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = method))
   stop_for_status(r)
   edge_rel <- data.frame(t(fromJSON(content(r, type = "text"))))
   colnames(edge_rel) <- c("edge_ids", "rel_pos_edge")
