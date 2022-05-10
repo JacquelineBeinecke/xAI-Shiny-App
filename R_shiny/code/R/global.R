@@ -103,7 +103,7 @@ getPatientNames <- function(dataset){
   # get list of patient names
   patient_names <- GET(paste(api_path,"/data/patient_name",sep=""), query = list(dataset_name = dataset))
   stop_for_status(patient_names)
-  patient_names <- fromJSON(content(patient_names, type = "text"), flatten = TRUE)
+  patient_names <- fromJSON(content(patient_names, type = "text", encoding = "UTF-8"), flatten = TRUE)
   
   return(patient_names)
 }
@@ -112,7 +112,7 @@ getNodeRelevances <- function(pat_id, graph_idx){
   # get node relevances from api
   r <- GET(paste(api_path, "/importances/nodes",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
   stop_for_status(r)
-  node_rel <- data.frame(t(fromJSON(content(r, type = "text"))))
+  node_rel <- data.frame(t(fromJSON(content(r, type = "text", encoding = "UTF-8"))))
   colnames(node_rel) <- c("node_ids", "rel_pos_node", "rel_pos_neg_node")
   node_rel[["rel_pos_node"]] <- as.numeric(node_rel[["rel_pos_node"]])
   node_rel[["rel_pos_neg_node"]] <- as.numeric(node_rel[["rel_pos_neg_node"]])
@@ -124,7 +124,7 @@ getEdgeRelevances <- function(pat_id, graph_idx, method){
   # get node relevances from api
   r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = method))
   stop_for_status(r)
-  edge_rel <- data.frame(t(fromJSON(content(r, type = "text"))))
+  edge_rel <- data.frame(t(fromJSON(content(r, type = "text", encoding = "UTF-8"))))
   colnames(edge_rel) <- c("edge_ids", "rel_pos_edge")
   
   return(edge_rel)
@@ -516,7 +516,7 @@ post_modifications <- function(pat_id, graph_idx, modification_history,all_delet
 get_max_graphs <- function(pat_id){
   r <- GET(paste(api_path, "/data/highest_graph_id",sep=""), query = list(patient_id = pat_id))
   stop_for_status(r)
-  max_graph <- as.numeric(fromJSON(content(r, type = "text"), flatten = TRUE))
+  max_graph <- as.numeric(fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE))
   
   return(max_graph)
 }
@@ -532,7 +532,8 @@ delete_graphs <- function(pat_id, graph_idx, max_graph){
 getPatInfo <-function(pat_id, graph_idx){
   r <- GET(paste(api_path, "/patients",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
   stop_for_status(r)
-  info <- fromJSON(content(r, type = "text"), flatten = TRUE)
+  info <- fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE)
+  info[4] <- round(as.numeric(info[4]), 2)
   return(info)
 }
 
@@ -588,6 +589,10 @@ initGlobalVars <- function(){
   
   # global variable that indexes the graphs (this always get +1 if predict or retrain is pressed)
   graph_idx <<- 0
+  
+  # global variable for patient names and patient names + information
+  pat_names <<- c()
+  patient_names <<- c()
 }
 
 #############################################################
@@ -662,6 +667,12 @@ second_node_of_connections_that_can_be_removed <- function(first_node, nodes, ed
 #########################################
 
 sort_by_user_selection <- function(sort_by, nodes, degree){
+  if(sort_by == "name_az"){
+    nodelist_for_table <- nodes[order(nodes[["label"]], decreasing = FALSE),]
+  }
+  if(sort_by == "name_za"){
+    nodelist_for_table <- nodes[order(nodes[["label"]], decreasing = TRUE),]
+  }
   if(sort_by == "degree_highlow"){
     nodelist_for_table <- nodes[order(cbind(nodes,degree)[["degree"]], decreasing = TRUE),]
   }

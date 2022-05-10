@@ -128,7 +128,7 @@ ui <- fluidPage(
                                       # choose predefined datasets 
                                       wellPanel(
                                         selectizeInput("choose_a_dataset", h4("Select one of the following datasets:"),
-                                                       choices = fromJSON(content(GET(paste(api_path,"/data/dataset_name",sep=""),type="basic"),"text"),flatten = TRUE), selected = 1),
+                                                       choices = fromJSON(content(GET(paste(api_path,"/data/dataset_name",sep=""),type="basic"),"text", encoding = "UTF-8"),flatten = TRUE), selected = 1),
                                         actionButton("upload_dataset", "Select dataset", class = "btn-primary"),
                                         # placeholder for error messages
                                         htmlOutput("warning_switching_dataset")
@@ -148,10 +148,11 @@ ui <- fluidPage(
                                         selectizeInput("choose_patient", h4("Select patient to see their graph:"), 
                                                        choices = c()
                                                        ),
-                                        # html output of patient information
-                                        htmlOutput("pat_info"),
                                         # placeholder for warning messages
-                                        htmlOutput("warning_deletion")
+                                        htmlOutput("warning_deletion"),
+                                        
+                                        # button to hide or show graph actions
+                                        actionButton("hide_vis_buttons", label = "Hide graph actions and information" , icon = icon("plus"))
                                       )
                                )
                              )
@@ -159,16 +160,20 @@ ui <- fluidPage(
                       ),
                       fluidRow(
                         column(12,
+                               # graph actions (sort and color)
+                               conditionalPanel(condition = "input.hide_vis_buttons % 2 == 0",
                                column(7,
                                       column(6,
                                              radioButtons("radio", label = HTML("<h3>","Sort nodes by", "</h3>"),
-                                                          choices = list("degree (high to low)" = "degree_highlow",
+                                                          choices = list("name (A to Z)" = "name_az",
+                                                                         "name (Z to A)" = "name_za",
+                                                                         "degree (high to low)" = "degree_highlow",
                                                                          "degree (low to high)" = "degree_lowhigh",
                                                                          "rel_pos (high to low)" = "rel_pos_highlow",
                                                                          "rel_pos (low to high)" = "rel_pos_lowhigh",
                                                                          "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
                                                                          "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
-                                                          selected = "degree_highlow", width = "500px"),
+                                                          selected = "name_az", width = "500px"),
                                              
                                              
                                       ),
@@ -176,7 +181,18 @@ ui <- fluidPage(
                                              radioButtons("radio_edge_rel", label = HTML("<h3>","Select XAI Method for edges", "</h3>"),
                                                           choices = list("Saliency" = "saliency",
                                                                          "Integrated Gradients" = "ig"), 
-                                                          selected = "saliency", width = "500px")
+                                                          selected = "saliency", width = "500px"),
+                                             # color nodes by attributes
+                                             selectInput("color_nodes", h3("Color the Nodes by:"),
+                                                                           choices = list(
+                                                                             "one color (default)",
+                                                                             "rel_pos",
+                                                                             "rel_pos_neg",
+                                                                             "degree")),
+                                              # print the value range of the selected attribute in the current data set
+                                              htmlOutput("range"),
+                                              # placeholder for error messages
+                                              htmlOutput("error_only_zeros")
                                       ),
                                       #default nodes to display is 3 (value = 3)
                                       #default max is 100 but this gets updated as soon as node and edge data are uploaded
@@ -195,7 +211,7 @@ ui <- fluidPage(
                                                  tags$div(style = "height:250px",plotOutput("confmatrix")),
                                                  br(),
                                                  tags$div(style = "display:inline-block",
-                                                          downloadButton("download", label = "Download", class = "btn-success"),
+                                                          #downloadButton("download", label = "Download", class = "btn-success"),
                                                           actionButton("predict", "Predict", class = "btn-primary"),
                                                           actionButton("retrain", "Retrain", class = "btn-primary")
                                                  )
@@ -205,56 +221,37 @@ ui <- fluidPage(
                                       )
                                )
                                )
-                        
+                        )
                       ),
                       fluidRow(
                         column(12,
+                               fluidRow(
+                                 # graph object
+                                 visNetworkOutput("graph", height = "600px"),
+                                 
+                                 # output legend
+                                 uiOutput(outputId = "uilegend")
+                               )
+                        ),
+                        column(12,
                                column(8,
-                                      fluidRow(
-                                        # graph object
-                                        visNetworkOutput("graph"),
-                                        
-                                        # output legend
-                                        uiOutput(outputId = "uilegend"),
-                                        # table with data on edges
-                                        div(style = "margin-top:-8em",
+                                      # table with data on edges
+                                      div(#style = "margin-top:-8em",
                                           tags$h3("Data on Edges"),
                                           tags$p("Hint: One node label can occur multiple times in both columns 'from' and 'to'. Use search function to view all edges of a node.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
                                           dataTableOutput("edge_feature_overview"),
                                           br()
-                                        ),
+                                      ),
                                         
                                         # table with data on nodes
                                         tags$h3("Data on Nodes"),
                                         dataTableOutput("feature_overview")
-                                      )
+                                      ),
                                       
-                               ),
+                               
                                
                                # side bar on the right
                                column(4,
-                                      # color nodes by attributes
-                                      wellPanel(
-                                        fluidRow(
-                                          column(12,
-                                                 column(12,
-                                                        selectInput("color_nodes", h3("Color the Nodes by:"),
-                                                                    choices = list(
-                                                                      "one color (default)",
-                                                                      "rel_pos",
-                                                                      "rel_pos_neg",
-                                                                      "degree"
-                                                                    )
-                                                        ),
-                                                        
-                                                        # print the value range of the selected attribute in the current data set
-                                                        htmlOutput("range")
-                                                 ),
-                                                 # placeholder for error messages
-                                                 htmlOutput("error_only_zeros")
-                                          )
-                                        )
-                                      ),
                                       # modification terminal
                                       wellPanel(
                                         fluidRow(

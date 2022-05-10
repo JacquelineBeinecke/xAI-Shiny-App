@@ -27,21 +27,28 @@ server <- function(input, output, session) {
       # get token for url
       t <- GET(paste(api_path, "/", sep=""))
       stop_for_status(t)
-      token <- fromJSON(content(t, type = "text"))
+      token <- fromJSON(content(t, type = "text", encoding = "UTF-8"))
       api_path <<- paste(api_path, token, sep="/")
       
       # get list of patient names
-      patient_names <- getPatientNames(input$choose_a_dataset)
-      
+      patient_names <<- getPatientNames(input$choose_a_dataset)
+    
       # train initial GNN on selected dataset
       r <- POST(paste(api_path, "/gnn",sep=""), encode = "json")
       # throw error if status returns something else than 200 (so if it didnt work)
       stop_for_status(r)
       
+      # append patient info to patient number
+      for(i in 1:length(patient_names)){
+        pat_id = i-1
+        info <- getPatInfo(pat_id, 0)
+        pat_names[i] <<- paste(patient_names[i], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
+      }
+
       # This is so that a new patient gets selected and the loading of a new graph gets triggered 
-      updateSelectizeInput(session, "choose_patient", choices = patient_names, selected = patient_names[0])
+      updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[0])
       # This loads the first patient of the new dataset
-      updateSelectizeInput(session, "choose_patient", choices = patient_names, selected = patient_names[1])
+      updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[1])
       
       # update log about selected dataset
       updateLog(paste("Dataset selected: ", input$choose_a_dataset, sep=""))
@@ -59,9 +66,8 @@ server <- function(input, output, session) {
     if(nrow(modification_history)>1){
       updateLog("Your modifications for this patient were not saved")
     }
-     
      # get patient id
-     pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+     pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
      
      # get the amount of modified graphs saved for this patient
      graph_idx <<- get_max_graphs(pat_id)
@@ -84,9 +90,8 @@ server <- function(input, output, session) {
      
      # show patient information
      info <- getPatInfo(pat_id, graph_idx)
-     output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
      # update log about selected patient
-     updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
+     updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
      
      # Get node and edge relevance scores 
      node_rel <<- getNodeRelevances(pat_id, graph_idx)
@@ -95,7 +100,7 @@ server <- function(input, output, session) {
      # get graph of selected dataset and patient
      r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
      stop_for_status(r)
-     graph <- fromJSON(content(r, type = "text"))
+     graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
      
      load_graph_from_json(graph)
      
@@ -146,7 +151,9 @@ server <- function(input, output, session) {
     if(!("rel_pos_neg_node" %in% colnames(node_rel) & !("rel_pos_node" %in% colnames(node_rel)))){
       shinyjs::disable("radio")
       updateRadioButtons(session, "radio",
-                       choices = list("degree (high to low)" = "degree_highlow",
+                       choices = list("name (A to Z)" = "name_az",
+                                      "name (Z to A)" = "name_za",
+                                      "degree (high to low)" = "degree_highlow",
                                       "degree (low to high)" = "degree_lowhigh"), 
                        selected = "degree_highlow")
  
@@ -154,7 +161,9 @@ server <- function(input, output, session) {
     if(!("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
       shinyjs::enable("radio")
        updateRadioButtons(session, "radio",
-                          choices = list("degree (high to low)" = "degree_highlow",
+                          choices = list("name (A to Z)" = "name_az",
+                                         "name (Z to A)" = "name_za",
+                                         "degree (high to low)" = "degree_highlow",
                                          "degree (low to high)" = "degree_lowhigh",
                                          "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
                                          "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
@@ -163,7 +172,9 @@ server <- function(input, output, session) {
     if(("rel_pos_node" %in% colnames(node_rel)) & !("rel_pos_neg_node" %in% colnames(node_rel))){
       shinyjs::enable("radio")
       updateRadioButtons(session, "radio",
-                         choices = list("degree (high to low)" = "degree_highlow",
+                         choices = list("name (A to Z)" = "name_az",
+                                        "name (Z to A)" = "name_za",
+                                        "degree (high to low)" = "degree_highlow",
                                         "degree (low to high)" = "degree_lowhigh",
                                         "rel_pos (high to low)" = "rel_pos_highlow",
                                         "rel_pos (low to high)" = "rel_pos_lowhigh"), 
@@ -172,7 +183,9 @@ server <- function(input, output, session) {
     if(("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
       shinyjs::enable("radio")
       updateRadioButtons(session, "radio",
-                         choices = list("degree (high to low)" = "degree_highlow",
+                         choices = list("name (A to Z)" = "name_az",
+                                        "name (Z to A)" = "name_za",
+                                        "degree (high to low)" = "degree_highlow",
                                         "degree (low to high)" = "degree_lowhigh",
                                         "rel_pos (high to low)" = "rel_pos_highlow",
                                         "rel_pos (low to high)" = "rel_pos_lowhigh",
@@ -195,7 +208,7 @@ server <- function(input, output, session) {
     shinyjs::disable("forward")
     
     # get patient id
-    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
     
     # post modification history to API if changes are made
     if(nrow(modification_history)>1){
@@ -256,11 +269,21 @@ server <- function(input, output, session) {
       HTML(" ")
     })
     
+    # append patient info to patient number
+    for(i in 1:length(patient_names)){
+      p_id = i-1
+      max_g <- get_max_graphs(p_id)
+      info <- getPatInfo(p_id, max_g)
+      pat_names[i] <- paste(patient_names[i], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
+    }
+    # Update patient names with new predictions
+    updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
+    
+    
     # update patient information
     info <- getPatInfo(pat_id, graph_idx)
-    output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
     # update log about selected patient
-    updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
+    updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
     
     # reset modification history
     modification_history <<- data.frame(action = c(0), element = c(0))
@@ -283,12 +306,13 @@ server <- function(input, output, session) {
     shinyjs::disable("forward")
     
     # get patient id
-    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
     
     # post modification history to API if changes are made
     if(nrow(modification_history)>1){
       # if a graph that is not the latest graph is changed, deleted all graphs with higher id
       max_graph <- get_max_graphs(pat_id)
+      
       if(graph_idx != max_graph){
         delete_graphs(pat_id, graph_idx, max_graph)
         if(max_graph-graph_idx > 1){
@@ -308,7 +332,7 @@ server <- function(input, output, session) {
       
       # update graph_idx, so that changes now get made on the deep_copy and not the modification.
       graph_idx <<- graph_idx +1
-      
+ 
       # send modifications to API
       post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges) 
       
@@ -325,7 +349,7 @@ server <- function(input, output, session) {
     # get retrained graph values
     r <- POST(paste(api_path, "/nn_predict",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
     stop_for_status(r)
-    
+
     # Get node and edge relevance scores 
     node_rel <<- getNodeRelevances(pat_id, graph_idx)
     edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
@@ -342,11 +366,15 @@ server <- function(input, output, session) {
       HTML(" ")
     })
     
-    # update patient information
+    # update patient info to patient number
     info <- getPatInfo(pat_id, graph_idx)
-    output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
+    pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
+ 
+    # Update patient names with new predictions
+    updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
+    
     # update log about selected patient
-    updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
+    updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
     
     # reset modification history
     modification_history <<- data.frame(action = c(0), element = c(0))
@@ -391,7 +419,7 @@ server <- function(input, output, session) {
         visNetwork(nodes, small_edgelist) %>%
           visInteraction(zoomView = TRUE, navigationButtons = TRUE, multiselect = TRUE, hover = TRUE) %>%
           # long click on nodes to select multiple nodes or by "Ctrl" + Click
-          visIgraphLayout(layout = "layout_with_fr") %>% # vanessa had "layout_with_fr"
+          visIgraphLayout(layout = "layout_in_circle") %>% # vanessa had "layout_with_fr"
           visNodes(
             size = 45,
             color = list(background = "#f5f6f7", border = "#0a4ea3", highlight = list(background = "#f5f6f7", border = "red"), hover = list(background = "#f5f6f7", border = "red"))
@@ -442,7 +470,7 @@ server <- function(input, output, session) {
     }
     
     # get patient id
-    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
     
     # update graph id
     graph_idx <<- graph_idx - 1
@@ -453,7 +481,7 @@ server <- function(input, output, session) {
     # restore patient graph
     r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
     stop_for_status(r)
-    graph <- fromJSON(content(r, type = "text"))
+    graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
     
     load_graph_from_json(graph)
     
@@ -497,11 +525,15 @@ server <- function(input, output, session) {
     # show warning for user
     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
     
-    # update patient information
+    # update patient info to patient number
     info <- getPatInfo(pat_id, graph_idx)
-    output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
+    pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
+    
+    # Update patient names with new predictions
+    updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
+    
     # update log about selected patient
-    updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
+    updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
     
   })
   
@@ -515,7 +547,7 @@ server <- function(input, output, session) {
     }
     
     # get patient id
-    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
     
     # update graph id
     graph_idx <<- graph_idx + 1
@@ -526,7 +558,7 @@ server <- function(input, output, session) {
     # restore patient graph
     r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
     stop_for_status(r)
-    graph <- fromJSON(content(r, type = "text"))
+    graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
     
     load_graph_from_json(graph)
     
@@ -584,11 +616,14 @@ server <- function(input, output, session) {
     # show warning for user
     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
     
-    # update patient information
+    # update patient info to patient number
     info <- getPatInfo(pat_id, graph_idx)
-    output$pat_info <- renderUI({HTML(paste0("<span style='font-size:14px'> <br/> Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4],"</span>"))})
+    pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
+    
+    # Update patient names with new predictions
+    updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
     # update log about selected patient
-    updateLog(paste("Patient Information: In ", info[1], ", Ground truth label = ", info[2], ", Predicted label = ", info[3], ", Models confidence in prediction = ", info[4], sep=""))
+    updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
     
   })
   
@@ -1743,7 +1778,7 @@ server <- function(input, output, session) {
   
   observeEvent(ignoreInit = T, c(input$radio_edge_rel), {
     # get patient id
-    pat_id <- as.numeric(gsub("Patient ", "", input$choose_patient))
+    pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
     # get selected edge relevances
     edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
 
@@ -1891,7 +1926,7 @@ server <- function(input, output, session) {
     # get retrained graph values
     r <- GET(paste(api_path, "/data/performance_values",sep=""))
     stop_for_status(r)
-    values <- as.numeric(fromJSON(content(r, type = "text"), flatten = TRUE))
+    values <- as.numeric(fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE))
     
     HTML(paste0("<font size='+1'>", "Sensitivity: ", values[5], "%, Specificity: ", values[6], "%", "</font>"))
   })
@@ -1906,7 +1941,7 @@ server <- function(input, output, session) {
     # get retrained graph values
     r <- GET(paste(api_path, "/data/performance_values",sep=""))
     stop_for_status(r)
-    values <- as.numeric(fromJSON(content(r, type = "text"), flatten = TRUE))
+    values <- as.numeric(fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE))
     
     # update log about gnn conf matrix
     updateLog(paste("GNN TN: ", values[1], ", FP: ", values[2], ", FN: ", values[3], ", TP: ", values[4], sep=""))
@@ -2028,6 +2063,21 @@ server <- function(input, output, session) {
     
   }
   
+  ############################################
+  ####### Hide graph actions buttons #########
+  ############################################
+  
+  # the first time this button gets pressed its value is 1 and then the value always get added +1
+  observeEvent(input$hide_vis_buttons,{
+    # if the value of the action button is uneven hide the action buttons
+    if(input$hide_vis_buttons[1] %% 2 != 0){
+      updateActionButton(session, "hide_vis_buttons", label = "Show graph actions and information", icon = icon("minus"))
+    # if the value of the action button is even show the action buttons
+    }else{
+      updateActionButton(session, "hide_vis_buttons", label = "Hide graph actions and information" , icon = icon("plus"))
+    }
+  })
+  
   ##################################
   ####### Download Results #########
   ##################################
@@ -2038,6 +2088,7 @@ server <- function(input, output, session) {
       paste0("modified_network_data.zip")
     },
     content = function(file) {
+      
       write.csv(nodelist_table, "modified_nodelist.csv", row.names = FALSE)
       write.csv(edgelist_table, "modified_edgelist.csv", row.names = FALSE)
       writeLines(logval$logOutput, "logFile.txt")
