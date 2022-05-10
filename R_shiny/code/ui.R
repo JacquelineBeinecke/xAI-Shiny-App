@@ -169,10 +169,10 @@ ui <- fluidPage(
                                                                          "name (Z to A)" = "name_za",
                                                                          "degree (high to low)" = "degree_highlow",
                                                                          "degree (low to high)" = "degree_lowhigh",
-                                                                         "rel_pos (high to low)" = "rel_pos_highlow",
-                                                                         "rel_pos (low to high)" = "rel_pos_lowhigh",
-                                                                         "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
-                                                                         "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
+                                                                         "XAI_1 (high to low)" = "XAI_1_highlow",
+                                                                         "XAI_1 (low to high)" = "XAI_1_lowhigh",
+                                                                         "XAI_2 (high to low)" = "XAI_2_highlow",
+                                                                         "XAI_2 (low to high)" = "XAI_2_lowhigh"), 
                                                           selected = "name_az", width = "500px"),
                                              
                                              
@@ -186,8 +186,8 @@ ui <- fluidPage(
                                              selectInput("color_nodes", h3("Color the Nodes by:"),
                                                                            choices = list(
                                                                              "one color (default)",
-                                                                             "rel_pos",
-                                                                             "rel_pos_neg",
+                                                                             "XAI_1",
+                                                                             "XAI_2",
                                                                              "degree")),
                                               # print the value range of the selected attribute in the current data set
                                               htmlOutput("range"),
@@ -225,18 +225,16 @@ ui <- fluidPage(
                       ),
                       fluidRow(
                         column(12,
-                               fluidRow(
-                                 # graph object
-                                 visNetworkOutput("graph", height = "600px"),
-                                 
-                                 # output legend
-                                 uiOutput(outputId = "uilegend")
-                               )
-                        ),
-                        column(12,
                                column(8,
+                                      
+                                      # graph object
+                                      visNetworkOutput("graph", height = "600px"),
+                                        
+                                      # output legend
+                                      uiOutput(outputId = "uilegend"),
+                                      
                                       # table with data on edges
-                                      div(#style = "margin-top:-8em",
+                                      div(style = "margin-top:-8em",
                                           tags$h3("Data on Edges"),
                                           tags$p("Hint: One node label can occur multiple times in both columns 'from' and 'to'. Use search function to view all edges of a node.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
                                           dataTableOutput("edge_feature_overview"),

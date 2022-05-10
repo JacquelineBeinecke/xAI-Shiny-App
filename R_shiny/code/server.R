@@ -95,7 +95,7 @@ server <- function(input, output, session) {
      
      # Get node and edge relevance scores 
      node_rel <<- getNodeRelevances(pat_id, graph_idx)
-     edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
+     edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
      
      # get graph of selected dataset and patient
      r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
@@ -148,7 +148,7 @@ server <- function(input, output, session) {
   # update radio buttons based on if rel_pos_neg or rel_pos is present
   observeEvent(ignoreInit = T,input$choose_patient,{
     print("update radio buttons")
-    if(!("rel_pos_neg_node" %in% colnames(node_rel) & !("rel_pos_node" %in% colnames(node_rel)))){
+    if(!("XAI_2" %in% colnames(node_rel) & !("XAI_1" %in% colnames(node_rel)))){
       shinyjs::disable("radio")
       updateRadioButtons(session, "radio",
                        choices = list("name (A to Z)" = "name_az",
@@ -158,40 +158,40 @@ server <- function(input, output, session) {
                        selected = "degree_highlow")
  
     }
-    if(!("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
+    if(!("XAI_1" %in% colnames(node_rel)) & ("XAI_2" %in% colnames(node_rel))){
       shinyjs::enable("radio")
        updateRadioButtons(session, "radio",
                           choices = list("name (A to Z)" = "name_az",
                                          "name (Z to A)" = "name_za",
                                          "degree (high to low)" = "degree_highlow",
                                          "degree (low to high)" = "degree_lowhigh",
-                                         "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
-                                         "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
-                          selected = "rel_pos_neg_highlow")
+                                         "XAI_2 (high to low)" = "XAI_2_highlow",
+                                         "XAI_2 (low to high)" = "XAI_2_lowhigh"), 
+                          selected = "XAI_2_highlow")
     }
-    if(("rel_pos_node" %in% colnames(node_rel)) & !("rel_pos_neg_node" %in% colnames(node_rel))){
+    if(("XAI_1" %in% colnames(node_rel)) & !("XAI_2" %in% colnames(node_rel))){
       shinyjs::enable("radio")
       updateRadioButtons(session, "radio",
                          choices = list("name (A to Z)" = "name_az",
                                         "name (Z to A)" = "name_za",
                                         "degree (high to low)" = "degree_highlow",
                                         "degree (low to high)" = "degree_lowhigh",
-                                        "rel_pos (high to low)" = "rel_pos_highlow",
-                                        "rel_pos (low to high)" = "rel_pos_lowhigh"), 
-                         selected = "rel_pos_highlow")
+                                        "XAI_1 (high to low)" = "XAI_1_highlow",
+                                        "XAI_1 (low to high)" = "XAI_1_lowhigh"), 
+                         selected = "XAI_1_highlow")
     }
-    if(("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
+    if(("XAI_1" %in% colnames(node_rel)) & ("XAI_2" %in% colnames(node_rel))){
       shinyjs::enable("radio")
       updateRadioButtons(session, "radio",
                          choices = list("name (A to Z)" = "name_az",
                                         "name (Z to A)" = "name_za",
                                         "degree (high to low)" = "degree_highlow",
                                         "degree (low to high)" = "degree_lowhigh",
-                                        "rel_pos (high to low)" = "rel_pos_highlow",
-                                        "rel_pos (low to high)" = "rel_pos_lowhigh",
-                                        "rel_pos_neg (high to low)" = "rel_pos_neg_highlow",
-                                        "rel_pos_neg (low to high)" = "rel_pos_neg_lowhigh"), 
-                         selected = "rel_pos_highlow")
+                                        "XAI_1 (high to low)" = "XAI_1_highlow",
+                                        "XAI_1 (low to high)" = "XAI_1_lowhigh",
+                                        "XAI_2 (high to low)" = "XAI_2_highlow",
+                                        "XAI_2 (low to high)" = "XAI_2_lowhigh"), 
+                         selected = "XAI_1_highlow")
     }
   })
   
@@ -253,7 +253,7 @@ server <- function(input, output, session) {
     
     # Get node and edge relevance scores 
     node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
@@ -352,7 +352,7 @@ server <- function(input, output, session) {
 
     # Get node and edge relevance scores 
     node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
@@ -413,7 +413,7 @@ server <- function(input, output, session) {
       if(nrow(small_edgelist) != 0){
         # update edge tooltip title (only if edges are given)
         small_edgelist$title <- update_edge_tooltip(nodelist_table, small_edgelist)
-        small_edgelist$color <- get_rel_colors_for_edge(small_edgelist)
+        small_edgelist$color <- get_rel_colors_for_edge(small_edgelist, input$radio_edge_rel)
         
         set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
         visNetwork(nodes, small_edgelist) %>%
@@ -487,7 +487,7 @@ server <- function(input, output, session) {
     
     # Get node and edge relevance scores 
     node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
@@ -564,7 +564,7 @@ server <- function(input, output, session) {
     
     # Get node and edge relevance scores 
     node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
@@ -1780,11 +1780,11 @@ server <- function(input, output, session) {
     # get patient id
     pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
     # get selected edge relevances
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$radio_edge_rel)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
 
     # update edge tooltip title (only if edges are given)
     small_edgelist$title <- update_edge_tooltip(nodelist_table, small_edgelist)
-    small_edgelist$color <- get_rel_colors_for_edge(small_edgelist)
+    small_edgelist$color <- get_rel_colors_for_edge(small_edgelist, input$radio_edge_rel)
 
     # update graph
     visNetworkProxy("graph") %>%
@@ -1811,21 +1811,21 @@ server <- function(input, output, session) {
       })
     }
     ## "rel_pos"
-    if(input$color_nodes == "rel_pos"){
+    if(input$color_nodes == "XAI_1"){
       # inform user that rel_pos only has values 0
-      if(all(node_rel$rel_pos_node==0)){
+      if(all(node_rel$XAI_1==0)){
         output$error_only_zeros <- renderUI({
-          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos' only contains 0. Upload data on nodes with values for 'rel_pos' to use this function! </span>")
+          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'XAI_1' only contains 0. Upload data on nodes with values for 'rel_pos' to use this function! </span>")
         })
         # calculate and plot legend
       }else{
-        colors_and_borders <- get_rel_pos_colors_and_border(small_nodelist_for_graph)
+        colors_and_borders <- get_rel_colors_for_node(small_nodelist_for_graph, "XAI_1")
         plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
         legend("top", legend = c(colors_and_borders[["Borders"]]), pch=21, pt.cex=2.5, cex=1.5, bty='n',
                col = "#0a4ea3", ncol = 3, pt.bg =colors_and_borders[["Colors"]])
         
         output$range <- renderUI({
-          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(node_rel$rel_pos_node), 1), ")", " - ", "(", round(max(node_rel$rel_pos_node), 1), ")", "</p>"))
+          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(node_rel$XAI_1), 1), ")", " - ", "(", round(max(node_rel$XAI_1), 1), ")", "</p>"))
         })
         
         # update graph
@@ -1833,23 +1833,24 @@ server <- function(input, output, session) {
           visUpdateNodes(nodes = colors_and_borders[["Nodes"]])
       }
     }
+    
     ## "rel_pos_neg"
-    if(input$color_nodes == "rel_pos_neg"){
+    if(input$color_nodes == "XAI_2"){
       # inform user that rel_pos_neg only has values 0
-      if(all(node_rel$rel_pos_neg_node==0)){
+      if(all(node_rel$XAI_2==0)){
         output$error_only_zeros <- renderUI({
-          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'rel_pos_neg' only contains 0. Upload data on nodes with values for 'rel_pos_neg' to use this function! </span>")
+          HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The variable 'XAI_2' only contains 0. Upload data on nodes with values for 'rel_pos_neg' to use this function! </span>")
         })
         # calculate and plot legend
       }else{
-        colors_and_borders <- get_rel_pos_neg_colors_and_border(small_nodelist_for_graph)
+        colors_and_borders <- get_rel_colors_for_node(small_nodelist_for_graph, "XAI_2")
         
         plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
         legend("top", legend = c(colors_and_borders[["Borders"]]), pch=21, pt.cex=2.5, cex=1.5, bty='n',
                col = "#0a4ea3", ncol = 4, pt.bg =c(colors_and_borders[["Neg_Colors"]], colors_and_borders[["Pos_Colors"]]) )
         
         output$range <- renderUI({
-          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(node_rel$rel_pos_neg_node), 1), ")", " - ", "(", round(max(node_rel$rel_pos_neg_node), 1), ")", "</p>"))
+          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(node_rel$XAI_2), 1), ")", " - ", "(", round(max(node_rel$XAI_2), 1), ")", "</p>"))
         })
         
         # update graph
@@ -1912,7 +1913,7 @@ server <- function(input, output, session) {
   # this makes sure that there is no empty whitespace placeholder where the legend 
   # should be in case that "one color (default)" is selected
   output$uilegend <- renderUI({
-    if("rel_pos" %in% input$color_nodes | "rel_pos_neg" %in% input$color_nodes | "degree" %in% input$color_nodes){
+    if("XAI_1" %in% input$color_nodes | "XAI_2" %in% input$color_nodes | "degree" %in% input$color_nodes){
       plotOutput(outputId = "legend", height= "250px") #maybe remove background transparent (not testes yet)
     }
   })
@@ -1986,35 +1987,35 @@ server <- function(input, output, session) {
     input$radio
   ), {
     print("reset coloring")
-    if(("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
+    if(("XAI_1" %in% colnames(node_rel)) & ("XAI_2" %in% colnames(node_rel))){
       updateSelectInput(session, "color_nodes",
                         choices = list(
                           "one color (default)",
-                          "rel_pos",
-                          "rel_pos_neg",
+                          "XAI_1",
+                          "XAI_2",
                           "degree"),
                         selected = "one color (default)"
       )
     }
-    if(!("rel_pos_node" %in% colnames(node_rel)) & ("rel_pos_neg_node" %in% colnames(node_rel))){
+    if(!("XAI_1" %in% colnames(node_rel)) & ("XAI_2" %in% colnames(node_rel))){
       updateSelectInput(session, "color_nodes",
                         choices = list(
                           "one color (default)",
-                          "rel_pos_neg",
+                          "XAI_2",
                           "degree"),
                         selected = "one color (default)"
       )
     }
-    if(("rel_pos_node" %in% colnames(node_rel)) & !("rel_pos_neg_node" %in% colnames(node_rel))){
+    if(("XAI_1" %in% colnames(node_rel)) & !("XAI_2" %in% colnames(node_rel))){
       updateSelectInput(session, "color_nodes",
                         choices = list(
                           "one color (default)",
-                          "rel_pos",
+                          "XAI_1",
                           "degree"),
                         selected = "one color (default)"
       )
     }
-    if(!("rel_pos_node" %in% colnames(node_rel)) & !("rel_pos_neg_node" %in% colnames(node_rel))){
+    if(!("XAI_1" %in% colnames(node_rel)) & !("XAI_2" %in% colnames(node_rel))){
       updateSelectInput(session, "color_nodes",
                         choices = list(
                           "one color (default)",

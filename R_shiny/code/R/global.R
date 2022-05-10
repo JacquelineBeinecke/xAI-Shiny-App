@@ -113,19 +113,28 @@ getNodeRelevances <- function(pat_id, graph_idx){
   r <- GET(paste(api_path, "/importances/nodes",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
   stop_for_status(r)
   node_rel <- data.frame(t(fromJSON(content(r, type = "text", encoding = "UTF-8"))))
-  colnames(node_rel) <- c("node_ids", "rel_pos_node", "rel_pos_neg_node")
-  node_rel[["rel_pos_node"]] <- as.numeric(node_rel[["rel_pos_node"]])
-  node_rel[["rel_pos_neg_node"]] <- as.numeric(node_rel[["rel_pos_neg_node"]])
+  colnames(node_rel) <- c("node_ids", "XAI_1", "XAI_2")
+  node_rel[["XAI_1"]] <- as.numeric(node_rel[["XAI_1"]])
+  node_rel[["XAI_2"]] <- as.numeric(node_rel[["XAI_2"]])
 
   return(node_rel)
 }
 
-getEdgeRelevances <- function(pat_id, graph_idx, method){
-  # get node relevances from api
-  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = method))
+getEdgeRelevances <- function(pat_id, graph_idx){
+  # get edge relevances from api (IG)
+  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = "ig"))
   stop_for_status(r)
-  edge_rel <- data.frame(t(fromJSON(content(r, type = "text", encoding = "UTF-8"))))
-  colnames(edge_rel) <- c("edge_ids", "rel_pos_edge")
+  edge_rel_ig <- data.frame(t(fromJSON(content(r, type = "text", encoding = "UTF-8"))))
+  colnames(edge_rel_ig) <- c("edge_ids", "Integrated Gradients")
+  
+  # get edge relevances from api (Saliency)
+  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = "saliency"))
+  stop_for_status(r)
+  edge_rel_saliency <- data.frame(t(fromJSON(content(r, type = "text", encoding = "UTF-8"))))
+  colnames(edge_rel_saliency) <- c("edge_ids", "Saliency")
+  
+  edge_rel <- cbind(edge_rel_ig, edge_rel_saliency[["Saliency"]])
+  colnames(edge_rel) <- c("edge_ids", "Integrated Gradients", "Saliency")
   
   return(edge_rel)
 }  
@@ -206,7 +215,7 @@ update_node_tooltip <- function(nodelist, edgelist){
   nodelist <- add_rel_to_nodelist(nodelist)
  
   # tooltip for nodes: create html String containing tooltip information: label, rel_pos, rel_pos_neg, degree, then create additional column "title" in nodes
-  cols <- which(colnames(nodelist) %in% c("label", "rel_pos", "rel_pos_neg"))
+  cols <- which(colnames(nodelist) %in% c("label", "XAI_1", "XAI_2"))
   nodes_tooltip <- cbind(nodelist[, cols], degree)
   colnames(nodes_tooltip) <- c(colnames(nodelist)[cols], "degree")
   
@@ -227,7 +236,7 @@ update_edge_tooltip <- function(nodelist, edgelist){
   edgelist <- add_rel_to_edgelist(edgelist)
 
   # tooltip for edges: translate node ids into label names, create html String containing tooltip information: "from-to", rel_pos, rel_pos_neg, then create additional column "title" in edges
-  edges_tooltip <- edgelist[, which(colnames(edgelist) %in% c("from","to","rel_pos","rel_pos_neg"))]
+  edges_tooltip <- edgelist[, which(colnames(edgelist) %in% c("from","to","Integrated Gradients","Saliency"))]
   string <- c()
   
   # replace ids with labels for showing in the table
@@ -239,8 +248,8 @@ update_edge_tooltip <- function(nodelist, edgelist){
   edges_tooltip$from_to <- paste0(as.character(edges_tooltip[1:nrow(edges_tooltip), 1]), " - ", as.character(edges_tooltip[1:nrow(edges_tooltip), 2]))
   
   from_to_col_nr <- which(colnames(edges_tooltip) == "from_to")
-  rel_pos_nr <- which(colnames(edges_tooltip) == "rel_pos")
-  rel_pos_neg_nr <- which(colnames(edges_tooltip) == "rel_pos_neg")
+  rel_pos_nr <- which(colnames(edges_tooltip) == "Integrated Gradients")
+  rel_pos_neg_nr <- which(colnames(edges_tooltip) == "Saliency")
   
   edges_tooltip <- edges_tooltip[, c(from_to_col_nr, rel_pos_nr, rel_pos_neg_nr), drop = FALSE]
   
@@ -262,13 +271,13 @@ add_rel_to_nodelist <- function(nodes){
   nodes <- cbind(nodes, data.frame(n_rel[, 2:ncol(n_rel)]))
   
   # change colnames for rel_pos_node and rel_pos_neg_node if given
-  if("rel_pos_node" %in% colnames(nodes)){
-    colnames(nodes)[which(colnames(nodes)=="rel_pos_node")] <- "rel_pos"
-    nodes$rel_pos <- as.numeric(nodes$rel_pos)
+  if("XAI_1" %in% colnames(nodes)){
+    colnames(nodes)[which(colnames(nodes)=="XAI_1")] <- "XAI_1"
+    nodes[["XAI_1"]] <- as.numeric(nodes[["XAI_1"]])
   }
-  if("rel_pos_neg_node" %in% colnames(nodes)){
-    colnames(nodes)[which(colnames(nodes)=="rel_pos_neg_node")] <- "rel_pos_neg"
-    nodes$rel_pos_neg <- as.numeric(nodes$rel_pos_neg)
+  if("XAI_2" %in% colnames(nodes)){
+    colnames(nodes)[which(colnames(nodes)=="XAI_2")] <- "XAI_2"
+    nodes[["XAI_2"]] <- as.numeric(nodes[["XAI_2"]])
   }
   
   return(nodes)
@@ -277,24 +286,24 @@ add_rel_to_nodelist <- function(nodes){
 add_rel_to_edgelist <- function(edges){
   # sort node_relevances so they match the nodelist
   e_rel <- edge_rel[match(edges[["id"]], edge_rel[["edge_ids"]]),]
-
+  
   # now cbind relevances values to nodelist
   if(ncol(e_rel)>2){
     edges <- cbind(edges, data.frame(e_rel[, 2:ncol(e_rel)]))
   }else{
-    edges <- cbind(edges, rel_pos_edge = e_rel$rel_pos_edge)
+    edges <- cbind(edges, rel_pos_edge = e_rel[, 2])
   }
   
-  # change colnames for rel_pos_node and rel_pos_neg_node if given
-  if("rel_pos_edge" %in% colnames(edges)){
-    colnames(edges)[which(colnames(edges)=="rel_pos_edge")] <- "rel_pos"
-    edges$rel_pos <- as.numeric(edges$rel_pos)
+  # change colnames for rel_pos_edge and rel_pos_neg_edge if given
+  if("Integrated.Gradients" %in% colnames(edges)){
+    colnames(edges)[which(colnames(edges)=="Integrated.Gradients")] <- "Integrated Gradients"
+    edges[["Integrated Gradients"]] <- as.numeric(edges[["Integrated Gradients"]])
   }
-  if("rel_pos_neg_edge" %in% colnames(edges)){
-    colnames(edges)[which(colnames(edges)=="rel_pos_neg_edge")] <- "rel_pos_neg"
-    edges$rel_pos_neg <- as.numeric(edges$rel_pos_neg)
+  if("Saliency" %in% colnames(edges)){
+    colnames(edges)[which(colnames(edges)=="Saliency")] <- "Saliency"
+    edges[["Saliency"]] <- as.numeric(edges[["Saliency"]])
   }
-
+  
   return(edges)
 }
 
@@ -302,12 +311,17 @@ add_rel_to_edgelist <- function(edges){
 ########  functions for colors   ############
 #############################################
 
-get_rel_colors_for_edge <- function(edgelist){
+get_rel_colors_for_edge <- function(edgelist, method){
   # add relevances to nodelist
   edges <- add_rel_to_edgelist(edgelist)
   
+  if(method == "ig"){
+    values <- edges[["Integrated Gradients"]]
+  }
+  if(method == "saliency"){
+    values <- edges[["Saliency"]]
+  }
   # scale values to [0.1,1]
-  values <- edges[["rel_pos"]]
   # define amount of different groups to differentiate by color and set the same amount of colors
   amount <- 5
   degree_colors_10 <- c("#e8e8e8", "#c8c8c8", "#ababab", "#919191", "#797979", "#646464", "#4f4f4f", "#3a3a3a", "#242424", "#000000")
@@ -332,6 +346,74 @@ get_rel_colors_for_edge <- function(edgelist){
   }
 
   return(color)
+}
+
+get_rel_colors_for_node <- function(nodelist, method){
+  # add relevances to nodelist
+  nodes <- add_rel_to_nodelist(nodelist)
+  
+  if(method == "XAI_1"){
+    # define amount of different groups to differentiate by color and set the same amount of colors
+    amount <- 5
+    #pos_colors <- c("#FAFAFA", "#E0E0E0", "#9E9E9E", "#616161", "#212121") #light to dark (left to right)
+    pos_colors <- c("#E1F5FE", "#B3E5FC", "#29B6F6", "#0288D1", "#01579B")
+    # calculate intervals
+    intervals <- cut(nodes$XAI_1, breaks = round(seq(from = min(nodes$XAI_1), to = max(nodes$XAI_1), by = (max(nodes$XAI_1)-min(nodes$XAI_1))/5),5), include.lowest = TRUE)
+    # map a color to each group
+    names(pos_colors) <- levels(intervals)
+    
+    # classify all nodes into groups with different colors
+    nodes$group <- intervals
+    nodes$color.background <- pos_colors[nodes$group]
+    nodes$color.highlight.background <- pos_colors[nodes$group]
+    nodes$color.hover.background <- pos_colors[nodes$group]
+    # all border colors remain unchanged
+    nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+    nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+    nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+    
+    all_rel <- list("Nodes" = nodes, "Colors" = pos_colors, "Borders" = levels(intervals))
+  }
+  if(method == "XAI_2"){
+    # define amount of different groups to differentiate by color
+    amount <- 5
+    neg_colors <- c("#0D47A1", "#1976D2", "#2196F3", "#90CAF9", "#E3F2FD")
+    pos_colors <- c("#FFEBEE", "#FFCDD2", "#E57373", "#D32F2F", "#B71C1C")
+    
+    # calculate intervals
+    nodes_positive <- nodes[which(nodes$XAI_2 > 0), ]
+    nodes_negative <- nodes[which(nodes$XAI_2 <= 0), ]
+    
+    # calculate intervals
+    intervals_pos <- cut(nodes_positive$XAI_2, breaks = round(seq(from = min(nodes_positive$XAI_2), to = max(nodes_positive$XAI_2), by = (max(nodes_positive$XAI_2)-min(nodes_positive$XAI_2))/5),5), include.lowest = TRUE)
+    intervals_neg <- cut(nodes_negative$XAI_2, breaks = round(seq(from = min(nodes_negative$XAI_2), to = max(nodes_negative$XAI_2), by = -(min(nodes_negative$XAI_2)-max(nodes_negative$XAI_2))/5),5), include.lowest = TRUE)
+    
+    # map a color to each group
+    names(pos_colors) <- levels(intervals_pos)
+    names(neg_colors) <- levels(intervals_neg)
+    
+    # classify all nodes into groups with different colors
+    nodes_negative$group <- intervals_neg
+    nodes_negative$color.background <- neg_colors[nodes_negative$group]
+    nodes_negative$color.highlight.background <- neg_colors[nodes_negative$group]
+    nodes_negative$color.hover.background <- neg_colors[nodes_negative$group]
+    
+    nodes_positive$group <- intervals_pos
+    nodes_positive$color.background <- pos_colors[nodes_positive$group]
+    nodes_positive$color.highlight.background <- pos_colors[nodes_positive$group]
+    nodes_positive$color.hover.background <- pos_colors[nodes_positive$group]
+    
+    nodes <- rbind(nodes_negative, nodes_positive)
+    
+    # all border colors remain unchanged
+    nodes$color.border <- c(rep("#0a4ea3", nrow(nodes)))
+    nodes$color.highlight.border <- c(rep("red", nrow(nodes)))
+    nodes$color.hover.border <- c(rep("red", nrow(nodes)))
+    
+    all_rel <- list("Nodes" = nodes, "Pos_Colors" = pos_colors, "Neg_Colors" = neg_colors, "Borders" = c(levels(intervals_neg), levels(intervals_pos)))
+  }
+  
+  return(all_rel)
 }
 
 get_rel_pos_colors_and_border <- function(nodelist){
@@ -679,7 +761,7 @@ sort_by_user_selection <- function(sort_by, nodes, degree){
   if(sort_by == "degree_lowhigh"){
     nodelist_for_table <- nodes[order(cbind(nodes,degree)[["degree"]], decreasing = FALSE),]
   }
-  if(sort_by == "rel_pos_highlow"){
+  if(sort_by == "XAI_1_highlow"){
     # remove nodes from node_rel that were removed by node_delete
     rem_nodes_idx <- which(!(node_rel[["node_ids"]] %in% nodes[["id"]]))
     if(length(rem_nodes_idx)>0){
@@ -690,9 +772,9 @@ sort_by_user_selection <- function(sort_by, nodes, degree){
     # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
     nodelist_table <- nodes[match(rels[["node_ids"]], nodes[["id"]]),]
     # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
-    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["rel_pos_node"]], decreasing = TRUE),]
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["XAI_1"]], decreasing = TRUE),]
   }
-  if(sort_by == "rel_pos_lowhigh"){
+  if(sort_by == "XAI_1_lowhigh"){
     # remove nodes from node_rel that were removed by node_delete
     rem_nodes_idx <- which(!(node_rel[["node_ids"]] %in% nodes[["id"]]))
     if(length(rem_nodes_idx)>0){
@@ -703,9 +785,9 @@ sort_by_user_selection <- function(sort_by, nodes, degree){
     # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
     nodelist_table <- nodes[match(rels[["node_ids"]], nodes[["id"]]),]
     # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
-    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["rel_pos_node"]], decreasing = FALSE),]
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["XAI_1"]], decreasing = FALSE),]
   }
-  if(sort_by == "rel_pos_neg_highlow"){
+  if(sort_by == "XAI_2_highlow"){
     # remove nodes from node_rel that were removed by node_delete
     rem_nodes_idx <- which(!(node_rel[["node_ids"]] %in% nodes[["id"]]))
     if(length(rem_nodes_idx)>0){
@@ -716,9 +798,9 @@ sort_by_user_selection <- function(sort_by, nodes, degree){
     # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
     nodelist_table <- nodes[match(rels[["node_ids"]], nodes[["id"]]),]
     # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
-    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["rel_pos_neg_node"]], decreasing = TRUE),]
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["XAI_2"]], decreasing = TRUE),]
   }
-  if(sort_by == "rel_pos_neg_lowhigh"){
+  if(sort_by == "XAI_2_lowhigh"){
     # remove nodes from node_rel that were removed by node_delete
     rem_nodes_idx <- which(!(node_rel[["node_ids"]] %in% nodes[["id"]]))
     if(length(rem_nodes_idx)>0){
@@ -729,7 +811,7 @@ sort_by_user_selection <- function(sort_by, nodes, degree){
     # first change the order of node_ids so that it is the same as in the data.frame of node_relevances
     nodelist_table <- nodes[match(rels[["node_ids"]], nodes[["id"]]),]
     # now that the nodes are in the same order just bind the relevances to the nodes_dataframe and sort by the relevances
-    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["rel_pos_neg_node"]], decreasing = FALSE),]
+    nodelist_for_table <- nodelist_table[order(cbind(nodelist_table,rels)[["XAI_1"]], decreasing = FALSE),]
   }
   
   return(nodelist_for_table)
