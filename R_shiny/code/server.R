@@ -204,8 +204,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$retrain, {
     print("retrain")
-    # disable forward button
-    shinyjs::disable("forward")
+    disable_all_action_buttons()
     
     # get patient id
     pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
@@ -237,8 +236,6 @@ server <- function(input, output, session) {
       # send modifications to API
       post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
       
-      # enable restore button
-      shinyjs::enable("backward")
       
       # update log about selected patient
       updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
@@ -246,7 +243,7 @@ server <- function(input, output, session) {
     
     # update log about Retraining
     updateLog("Retraining GNN")
-    
+  
     # get retrained graph values
     r <- POST(paste(api_path, "/nn_retrain",sep=""))
     stop_for_status(r)
@@ -258,7 +255,6 @@ server <- function(input, output, session) {
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "one color (default)")
     
-    calculate_smaller_node_and_edge_list()
     
     # remove warning message about changes being removed when switching patients
     output$warning_deletion <- renderUI({
@@ -293,7 +289,10 @@ server <- function(input, output, session) {
     all_added_edges <<- data.frame()
     all_added_nodes <<- data.frame()
     
-    
+    enable_all_action_buttons()
+    # disable forward button
+    shinyjs::disable("forward")
+    shinyjs::disable("undo")
   })
   
   ############################

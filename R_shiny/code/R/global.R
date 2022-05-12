@@ -675,6 +675,9 @@ initGlobalVars <- function(){
   # global variable for patient names and patient names + information
   pat_names <<- c()
   patient_names <<- c()
+  
+  node_rel <<- c()
+  edge_rel <<- c()
 }
 
 #############################################################
@@ -896,6 +899,13 @@ calculate_small_tables <- function(nodes, edges, radio, slider){
 ####################################################################
 
 disable_all_action_buttons <- function(){
+  # graph manipulation buttons
+  shinyjs::disable("choose_patient")
+  shinyjs::disable("radio")
+  shinyjs::disable("radio_edge_rel")
+  shinyjs::disable("color_nodes")
+  shinyjs::disable("slider")
+  
   # jumping between graph states and undoing
   shinyjs::disable("forward")
   shinyjs::disable("backward")
@@ -903,7 +913,10 @@ disable_all_action_buttons <- function(){
   
   # node/edge actions
   shinyjs::disable("confirm_node_deletion")
+  shinyjs::disable("confirm_node_addition")
+  shinyjs::disable("cancel_node_addition")
   shinyjs::disable("confirm_nodeFeature_value")
+  
   
   shinyjs::disable("confirm_edge_deletion")
   shinyjs::disable("confirm_edge_addition")
@@ -921,6 +934,13 @@ disable_all_action_buttons <- function(){
 }
 
 enable_all_action_buttons <- function(){
+  # graph manipulation buttons
+  shinyjs::enable("choose_patient")
+  shinyjs::enable("radio")
+  shinyjs::enable("radio_edge_rel")
+  shinyjs::enable("color_nodes")
+  shinyjs::enable("slider")
+  
   # jumping between graph states and undoing
   shinyjs::enable("forward")
   shinyjs::enable("backward")
@@ -928,6 +948,8 @@ enable_all_action_buttons <- function(){
   
   # node/edge actions
   shinyjs::enable("confirm_node_deletion")
+  shinyjs::enable("confirm_node_addition")
+  shinyjs::enable("cancel_node_addition")
   shinyjs::enable("confirm_nodeFeature_value")
   
   shinyjs::enable("confirm_edge_deletion")
