@@ -225,16 +225,15 @@ ui <- fluidPage(
                       ),
                       fluidRow(
                         column(12,
+                               # graph object
+                               visNetworkOutput("graph", height = "600px"),
+                               # output legend
+                               uiOutput(outputId = "uilegend"),
+                               
                                column(8,
                                       
-                                      # graph object
-                                      visNetworkOutput("graph", height = "600px"),
-                                        
-                                      # output legend
-                                      uiOutput(outputId = "uilegend"),
-                                      
                                       # table with data on edges
-                                      div(style = "margin-top:-8em",
+                                      div(#style = "margin-top:-8em",
                                           tags$h3("Data on Edges"),
                                           tags$p("Hint: One node label can occur multiple times in both columns 'from' and 'to'. Use search function to view all edges of a node.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
                                           dataTableOutput("edge_feature_overview"),
