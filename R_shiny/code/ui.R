@@ -131,7 +131,7 @@ ui <- fluidPage(
                                                        choices = fromJSON(content(GET(paste(api_path,"/data/dataset_name",sep=""),type="basic"),"text", encoding = "UTF-8"),flatten = TRUE), selected = 1),
                                         actionButton("upload_dataset", "Select dataset", class = "btn-primary"),
                                         # placeholder for error messages
-                                        htmlOutput("warning_switching_dataset")
+                                        #htmlOutput("warning_switching_dataset")
                                         )
                                       )
                         )
@@ -225,24 +225,15 @@ ui <- fluidPage(
                       ),
                       fluidRow(
                         column(12,
-                               # graph object
-                               visNetworkOutput("graph", height = "600px"),
-                               # output legend
-                               uiOutput(outputId = "uilegend"),
+                               
                                
                                column(8,
+                                      # graph object
+                                      visNetworkOutput("graph", height = "600px"),
+                                      # output legend
+                                      uiOutput(outputId = "uilegend")
                                       
-                                      # table with data on edges
-                                      div(#style = "margin-top:-8em",
-                                          tags$h3("Data on Edges"),
-                                          tags$p("Hint: One node label can occur multiple times in both columns 'from' and 'to'. Use search function to view all edges of a node.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
-                                          dataTableOutput("edge_feature_overview"),
-                                          br()
-                                      ),
-                                        
-                                        # table with data on nodes
-                                        tags$h3("Data on Nodes"),
-                                        dataTableOutput("feature_overview")
+                                      
                                       ),
                                       
                                
@@ -354,7 +345,23 @@ ui <- fluidPage(
                                       tags$style(HTML("#log {height:600px}")),
                                       verbatimTextOutput("log", placeholder = FALSE)
                                )
-                        )
+                        ),
+                        column(12,
+                               column(6,
+                                      # table with data on edges
+                                      div(#style = "margin-top:-8em",
+                                        tags$h3("Data on Edges"),
+                                        tags$p("Hint: One node label can occur multiple times in both columns 'from' and 'to'. Use search function to view all edges of a node.", style = {"color: dimgray; font-style:italic; font-size:14px;"}),
+                                        dataTableOutput("edge_feature_overview"),
+                                        br()
+                                      )
+                                      ),
+                               column(6,
+                                      # table with data on nodes
+                                      tags$h3("Data on Nodes"),
+                                      dataTableOutput("feature_overview")
+                                      )
+                               )
                       )
              )
   )
