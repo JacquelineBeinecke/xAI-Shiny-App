@@ -165,12 +165,12 @@ ui <- fluidPage(
                                column(7,
                                       column(6,
                                              radioButtons("radio", label = HTML("<h3>","Sort nodes by", "</h3>"),
-                                                          choices = list("name (A to Z)" = "name_az",
-                                                                         "name (Z to A)" = "name_za",
-                                                                         "degree (high to low)" = "degree_highlow",
-                                                                         "degree (low to high)" = "degree_lowhigh",
-                                                                         "XAI_1 (high to low)" = "XAI_1_highlow",
-                                                                         "XAI_1 (low to high)" = "XAI_1_lowhigh",
+                                                          choices = list("Name (A to Z)" = "name_az",
+                                                                         "Name (Z to A)" = "name_za",
+                                                                         "Degree (high to low)" = "degree_highlow",
+                                                                         "Degree (low to high)" = "degree_lowhigh",
+                                                                         "GNNExplainer (high to low)" = "GNNExplainer_highlow",
+                                                                         "GNNExplainer (low to high)" = "GNNExplainer_lowhigh",
                                                                          "XAI_2 (high to low)" = "XAI_2_highlow",
                                                                          "XAI_2 (low to high)" = "XAI_2_lowhigh"), 
                                                           selected = "name_az", width = "500px"),
@@ -185,10 +185,10 @@ ui <- fluidPage(
                                              # color nodes by attributes
                                              selectInput("color_nodes", h3("Color the Nodes by:"),
                                                                            choices = list(
-                                                                             "one color (default)",
-                                                                             "XAI_1",
+                                                                             "One color (default)",
+                                                                             "GNNExplainer",
                                                                              "XAI_2",
-                                                                             "degree")),
+                                                                             "Degree")),
                                               # print the value range of the selected attribute in the current data set
                                               htmlOutput("range"),
                                               # placeholder for error messages
@@ -211,7 +211,7 @@ ui <- fluidPage(
                                                  tags$div(style = "height:250px",plotOutput("confmatrix")),
                                                  br(),
                                                  tags$div(style = "display:inline-block",
-                                                          #downloadButton("download", label = "Download", class = "btn-success"),
+                                                          downloadButton("download", label = "Download Results", class = "btn-success"),
                                                           actionButton("predict", "Predict", class = "btn-primary"),
                                                           actionButton("retrain", "Retrain", class = "btn-primary")
                                                  )
