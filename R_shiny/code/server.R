@@ -1928,7 +1928,7 @@ server <- function(input, output, session) {
     stop_for_status(r)
     values <- as.numeric(fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE))
     
-    HTML(paste0("<font size='+1'>", "Sensitivity: ", values[5], "%, Specificity: ", values[6], "%", "</font>"))
+    HTML(paste0("<font size='+1'>", "Sensitivity: ", values[5], ", Specificity: ", values[6], "</font>"))
   })
   
   output$sens_spec <- renderText({
