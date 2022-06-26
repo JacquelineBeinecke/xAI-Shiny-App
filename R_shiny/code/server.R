@@ -5,6 +5,25 @@ server <- function(input, output, session) {
 
   initGlobalVars()
   
+  ##########################
+  ####### Log File #########
+  ##########################
+  
+  # initialize log output 
+  logval <- reactiveValues(
+    logOutput = "Log File \n"
+  )
+  
+  # update shown log everytime logOutput changes
+  output$log <- renderText({logval$logOutput})
+  
+  # function to add something to logOutput 
+  updateLog <- function(text){
+    logval$logOutput <- paste(logval$logOutput, text, sep = "\n")
+  }
+  
+  
+  
   #######################################
   ######## upload whole dataset #########
   #######################################
@@ -52,6 +71,21 @@ server <- function(input, output, session) {
       
       # update log about selected dataset
       updateLog(paste("Dataset selected: ", input$choose_a_dataset, sep=""))
+      
+      # render sensitivity and specificity
+      output$sens_spec <- renderText({
+        sens_spec()
+      })
+      
+      # render the legend and update vis with color
+      output$confmatrix <- renderPlot({
+        r <- calculate_conf_matrix()
+        plot(r[[1]])
+      }, height=250, width=230, bg="transparent")
+      
+      # update log about gnn conf matrix, gnn sens, spec
+      updateLog(calculate_conf_matrix()[[2]])
+      updateLog(calculate_conf_matrix()[[3]])
       
       # enable interact tab when dataset is selected
       shinyjs::js$enableTab("Interact")
@@ -265,6 +299,21 @@ server <- function(input, output, session) {
       HTML(" ")
     })
     
+    # render sensitivity and specificity
+    output$sens_spec <- renderText({
+      sens_spec()
+    })
+    
+    # render the legend and update vis with color
+    output$confmatrix <- renderPlot({
+      r <- calculate_conf_matrix()
+      plot(r[[1]])
+    }, height=250, width=230, bg="transparent")
+    
+    # update log about gnn conf matrix, gnn sens, spec
+    updateLog(calculate_conf_matrix()[[2]])
+    updateLog(calculate_conf_matrix()[[3]])
+    
     # append patient info to patient number
     for(i in 1:length(patient_names)){
       p_id = i-1
@@ -369,6 +418,22 @@ server <- function(input, output, session) {
     info <- getPatInfo(pat_id, graph_idx)
     pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
  
+    # render sensitivity and specificity
+    output$sens_spec <- renderText({
+      sens_spec()
+    })
+    
+    # render the legend and update vis with color
+    # render the legend and update vis with color
+    output$confmatrix <- renderPlot({
+      r <- calculate_conf_matrix()
+      plot(r[[1]])
+    }, height=250, width=230, bg="transparent")
+    
+    # update log about gnn conf matrix, gnn sens, spec
+    updateLog(calculate_conf_matrix()[[2]])
+    updateLog(calculate_conf_matrix()[[3]])
+    
     # Update patient names with new predictions
     updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
     
@@ -1916,64 +1981,7 @@ server <- function(input, output, session) {
       plotOutput(outputId = "legend", height= "250px") #maybe remove background transparent (not testes yet)
     }
   })
-  
-  #######################################
-  ######### Confusion matrix ############
-  #######################################
-  
-  sens_spec <- eventReactive(c(input$upload_dataset, input$retrain, input$predict),{
-    print("get performance scores")
-    # get retrained graph values
-    r <- GET(paste(api_path, "/data/performance_values",sep=""))
-    stop_for_status(r)
-    values <- as.numeric(fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE))
-    
-    HTML(paste0("<font size='+1'>", "Sensitivity: ", values[5], ", Specificity: ", values[6], "</font>"))
-  })
-  
-  output$sens_spec <- renderText({
-   sens_spec()
-  })
-  
-  
-  calculate_conf_matrix <- eventReactive(c(input$upload_dataset, input$retrain, input$predict),{
-    print("calculate confusion matrix")
-    # get retrained graph values
-    r <- GET(paste(api_path, "/data/performance_values",sep=""))
-    stop_for_status(r)
-    values <- as.numeric(fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE))
-    
-    # update log about gnn conf matrix
-    updateLog(paste("GNN TN: ", values[1], ", FP: ", values[2], ", FN: ", values[3], ", TP: ", values[4], sep=""))
-    # update log about gnn sens, spec
-    updateLog(paste("GNN Sensitivity: ", values[5], "%, Specificity: ", values[6], "%", sep=""))
-    
-    # plot conf matrix
-    TClass <- factor(c("False", "False", "True", "True"))
-    PClass <- factor(c("False", "True", "False", "True"), levels = c("True","False"))
-    Color  <- factor(c(0,1,1,0))
-    Y      <- c(values[1], values[2], values[3], values[4]) #(TN,FN,FP,TP)
-    
-    conf_matrix <- data.frame(TClass, PClass, Y, Color)
-    
-    ggplot(data =  conf_matrix, mapping = aes(x = PClass, y = TClass)) +
-      geom_tile(aes(fill = Color, alpha = 0.2), colour = "white") +
-      geom_text(aes(label = sprintf("%1.0f", Y)), size = 10) +
-      scale_fill_manual(values=c("steelblue", "grey")) +
-      theme_bw() + theme(legend.position = "none") + labs(x = "Predicted Class", y = "True Class", title = "Confusion matrix") +
-      theme(axis.line=element_blank(),axis.ticks=element_blank(),axis.text.x=element_text(size = 20, margin=margin(-10,0,0,0)),
-            axis.text.y=element_text(angle = 90, size = 20, hjust = 0.5, margin=margin(0,-10,0,0)), axis.title.x = element_text(size = 20, margin=margin(0,0,0,0)),
-            axis.title.y = element_text(size = 20, margin=margin(0,0,0,0)), title = element_text(size=20),
-            panel.border=element_blank(),panel.grid.major=element_blank(),
-            panel.grid.minor=element_blank(),panel.background = element_rect(fill = "transparent"), # bg of the panel
-            plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
-            )
-   
-  })
-  # render the legend and update vis with color
-  output$confmatrix <- renderPlot({
-    calculate_conf_matrix()
-  }, height=250, width=230, bg="transparent")
+
   
   ###################################################################
   ######### Reset Coloring when Slider or Radio is changed ##########
@@ -2100,22 +2108,7 @@ server <- function(input, output, session) {
     contentType = "application/zip"
   )
   
-  ##########################
-  ####### Log File #########
-  ##########################
   
-  # initialize log output 
-  logval <- reactiveValues(
-    logOutput = "Log File \n"
-  )
-  
-  # update shown log everytime logOutput changes
-  output$log <- renderText({logval$logOutput})
-  
-  # function to add something to logOutput 
-  updateLog <- function(text){
-    logval$logOutput <- paste(logval$logOutput, text, sep = "\n")
-  }
   
 }
 

@@ -332,7 +332,7 @@ get_rel_colors_for_edge <- function(edgelist, method){
   degree_colors_5 <- c("#d4d4d4", "#b4b4b4", "#909090", "#636363", "#494848")
 
   if(max(values)==0){
-    color <- rep("#000000", length(values))
+    color <- rep("#d4d4d4", length(values))
   }else{
     if(max(values) <= 0.5){
       intervals <- cut(values, breaks = seq(from = 0, to = max(values)+0.01, by = (max(values)+0.01)/5), include.lowest = TRUE)
@@ -576,6 +576,7 @@ ovwriting_warning <- function(graph_idx, max_graph){
 ##########################################
 
 initGlobalVars <- function(){
+  
   # global variables that contain the modified graph data. These will be downloaded by the user (and would be returned to an API)
   nodelist_table <<- data.frame()
   edgelist_table <<- data.frame()
@@ -898,4 +899,56 @@ enable_all_action_buttons <- function(){
   shinyjs::enable("predict")
   shinyjs::enable("retrain")
   shinyjs::enable("download")
+}
+
+
+#######################################
+######### Confusion matrix ############
+#######################################
+
+
+sens_spec <- function(){
+  print("get performance scores")
+  # get retrained graph values
+  r <- GET(paste(api_path, "/data/performance_values",sep=""))
+  stop_for_status(r)
+  values <- as.numeric(fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE))
+  
+  string <- HTML(paste0("<font size='+1'>", "Sensitivity: ", values[5], ", Specificity: ", values[6], "</font>"))
+  
+  return(string)
+}
+
+calculate_conf_matrix <- function(){
+  print("calculate confusion matrix")
+  # get retrained graph values
+  r <- GET(paste(api_path, "/data/performance_values",sep=""))
+  stop_for_status(r)
+  values <- as.numeric(fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE))
+  
+  # update log about gnn conf matrix, gnn sens, spec
+  str1 <- paste("GNN TN: ", values[1], ", FP: ", values[2], ", FN: ", values[3], ", TP: ", values[4], sep="")
+  str2 <- paste("GNN Sensitivity: ", values[5], "%, Specificity: ", values[6], "%", sep="")
+  
+  # plot conf matrix
+  TClass <- factor(c("False", "False", "True", "True"))
+  PClass <- factor(c("False", "True", "False", "True"), levels = c("True","False"))
+  Color  <- factor(c(0,1,1,0))
+  Y      <- c(values[1], values[2], values[3], values[4]) #(TN,FN,FP,TP)
+  
+  conf_matrix <- data.frame(TClass, PClass, Y, Color)
+  
+  plt <- ggplot(data =  conf_matrix, mapping = aes(x = PClass, y = TClass)) +
+    geom_tile(aes(fill = Color, alpha = 0.2), colour = "white") +
+    geom_text(aes(label = sprintf("%1.0f", Y)), size = 10) +
+    scale_fill_manual(values=c("steelblue", "grey")) +
+    theme_bw() + theme(legend.position = "none") + labs(x = "Predicted Class", y = "True Class", title = "Confusion matrix") +
+    theme(axis.line=element_blank(),axis.ticks=element_blank(),axis.text.x=element_text(size = 20, margin=margin(-10,0,0,0)),
+          axis.text.y=element_text(angle = 90, size = 20, hjust = 0.5, margin=margin(0,-10,0,0)), axis.title.x = element_text(size = 20, margin=margin(0,0,0,0)),
+          axis.title.y = element_text(size = 20, margin=margin(0,0,0,0)), title = element_text(size=20),
+          panel.border=element_blank(),panel.grid.major=element_blank(),
+          panel.grid.minor=element_blank(),panel.background = element_rect(fill = "transparent"), # bg of the panel
+          plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    )
+  return(list(plt, str1, str2))
 }
