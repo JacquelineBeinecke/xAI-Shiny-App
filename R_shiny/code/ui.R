@@ -14,13 +14,16 @@ library(httr)
 library(xml2)
 library(ggplot2)
 
+api_path <<- "http://127.0.0.1:5000"
 
 ui <- fluidPage(
-  
-  # api path
-  api_path <<- "http://127.0.0.1:5000",
-  
-  # activate the function to dis/enable tabs
+  titlePanel(
+    windowTitle = "Interactive XAI Platform",
+    title = tags$head(tags$link(rel="icon", 
+                                href="data:image/x-icon;base64,AAABAAEAEBAQAAEAetc", 
+                                type="image/x-icon")
+    )),
+    # activate the function to dis/enable tabs
   shinyjs::useShinyjs(),
   shinyjs::extendShinyjs(text = app_jscode, functions = c("disableTab", "enableTab")),
   shinyjs::inlineCSS(app_css),

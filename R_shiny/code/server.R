@@ -31,8 +31,6 @@ server <- function(input, output, session) {
   # update selectize input for patients
   observeEvent(input$upload_dataset, {
     print("upload dataset")
-      api_path <<- "http://127.0.0.1:5000"
-      
       # initially disable Interact tab by start of the shiny App 
       shinyjs::js$disableTab("Interact")
       
