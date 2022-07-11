@@ -30,18 +30,17 @@ server <- function(input, output, session) {
   
   # update selectize input for patients
   observeEvent(input$upload_dataset, {
-    print("upload dataset")
+      print("upload dataset")
+      # this is for showing the loading spinner
+      output$loading <- renderUI({HTML(" ")})
       # initially disable Interact tab by start of the shiny App 
       shinyjs::js$disableTab("Interact")
       
       # disable select dataset button until dataset is loaded
       shinyjs::disable("upload_dataset")
-      # warning about switching to different dataset
-      output$warning_switching_dataset <- renderUI({
-        HTML("<span style='color:red; font-size:14px'> <br/> Warning: If you choose a different dataset, all your modifications will be lost. Please save your modifications by pressing the Download-Button in the Interact-Tab. </span>")
-      })  
       
       # get token for url
+      api_path <<- "http://127.0.0.1:5000"
       t <- GET(paste(api_path, "/", sep=""))
       stop_for_status(t)
       token <- fromJSON(content(t, type = "text", encoding = "UTF-8"))
@@ -89,6 +88,7 @@ server <- function(input, output, session) {
       shinyjs::js$enableTab("Interact")
       #enable select dataset button when dataset is loaded
       shinyjs::enable("upload_dataset")
+     
   })
   
   # load graph of selected patient
@@ -783,8 +783,9 @@ server <- function(input, output, session) {
   # initialize dropdown of node attributes for node addition ----------------------------------
   observeEvent(ignoreInit = T, input$choose_patient, {
     print("init node attributes")
-    node_features <- node_features_list
-    feature_names <- colnames(node_features)
+    node_features_list <<- subset(nodelist_table, select = -c(1:2))
+    feature_names <- colnames(node_features_list)
+    print(node_features_list)
     updateSelectizeInput(session, "choose_node_feature", choices = feature_names, server = TRUE)
   })
   

@@ -8,15 +8,17 @@ library(shinyBS)
 library(zip)
 library(rje)
 library(png)
+library(shinycssloaders)
 # for api #
 library(jsonlite)
 library(httr)
 library(xml2)
 library(ggplot2)
 
-api_path <<- "http://127.0.0.1:5000"
+
 
 ui <- fluidPage(
+  api_path <<- "http://127.0.0.1:5000",
   titlePanel(
     windowTitle = "Interactive XAI Platform",
     title = tags$head(tags$link(rel="icon", 
@@ -132,10 +134,14 @@ ui <- fluidPage(
                                       wellPanel(
                                         selectizeInput("choose_a_dataset", h4("Select one of the following datasets:"),
                                                        choices = fromJSON(content(GET(paste(api_path,"/data/dataset_name",sep=""),type="basic"),"text", encoding = "UTF-8"),flatten = TRUE), selected = 1),
-                                        actionButton("upload_dataset", "Select dataset", class = "btn-primary"),
-                                        # placeholder for error messages
-                                        #htmlOutput("warning_switching_dataset")
-                                        )
+                                        actionButton("upload_dataset", "Select dataset", class = "btn-primary")
+                                        ),
+                                      div(style = "margin-top:-10em",
+                                          conditionalPanel(condition = "input.upload_dataset > 0",
+                                                           # placeholder for error messages
+                                                           withSpinner(htmlOutput("loading"), type=4, size = 0.5)
+                                          )
+                                      )
                                       )
                         )
                       
@@ -342,7 +348,7 @@ ui <- fluidPage(
                                                          ),
                                                          htmlOutput("hint_adding_edge"),
                                                          actionButton("confirm_edge_addition", "Add Edge", class = "btn-primary"),
-                                                         actionButton("cancel_edge_addition", "Cancel"),
+                                                         #actionButton("cancel_edge_addition", "Cancel"),
                                                        )
                                       ),
                                       tags$style(HTML("#log {height:600px}")),
