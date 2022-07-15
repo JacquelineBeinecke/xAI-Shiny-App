@@ -785,7 +785,6 @@ server <- function(input, output, session) {
     print("init node attributes")
     node_features_list <<- subset(nodelist_table, select = -c(1:2))
     feature_names <- colnames(node_features_list)
-    print(node_features_list)
     updateSelectizeInput(session, "choose_node_feature", choices = feature_names, server = TRUE)
   })
   
@@ -2089,20 +2088,89 @@ server <- function(input, output, session) {
   ####### Download Results #########
   ##################################
   
+  output$info_download <- renderUI({HTML("<span style='color:gray; font-size:14px'> <br/> The dowload might take a few minutes. </span>")})
+  
   # download the modified graph, being the current version of edgelist_table and nodelist_table ----------------------------------
   output$download <- downloadHandler(
     filename = function() {
       paste0("results.zip")
     },
     content = function(file) {
-      # TODO: Add relevances
-      write.csv(nodelist_table, "node_relevances.csv", row.names = FALSE)
-      write.csv(edgelist_table, "edge_relevances.csv", row.names = FALSE)
+      shinyjs::disable("download")
+      shinyjs::disable("predict")
+      shinyjs::disable("retrain")
+      output$info_download <- renderUI({HTML("")})
+      files <- c()
+      for(pat in patient_names[1:10]){
+        # get patient id
+        pat_id <- as.numeric(strsplit(pat, split = " ")[[1]][2])
+        
+        # get the amount of modified graphs saved for this patient
+        graph_id <- get_max_graphs(pat_id)
+        
+        # Get node and edge relevance scores 
+        n_rel <- getNodeRelevances(pat_id, graph_id)
+        e_rel <- getEdgeRelevances(pat_id, graph_id)
+        
+        # get graph of selected dataset and patient
+        r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
+        stop_for_status(r)
+        graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
+        graph_df <- data.frame(graph)
+        
+        nodes <- as.data.frame(graph_df$data[[1]])
+        colnames(nodes) <- graph_df$columns[[1]]
+        nodes <- nodes[order(nodes$label), ]
+        
+        edges <- as.data.frame(graph_df$data[[2]])
+        colnames(edges) <- graph_df$columns[[2]]
+        edges <- edges[order(edges$from), ]
+
+        if(ncol(edges)>3){
+          if(nrow(edges)>0){
+            # replace ids with labels for showing in the table
+            for(idx in 1:nrow(edges)){
+              edges$from[idx] <- nodes$label[which(nodes$id==edges$from[idx])]
+              edges$to[idx] <- nodes$label[which(nodes$id==edges$to[idx])]
+            }
+            
+            # sort by  label and remove all ID columns for vis
+            edges <- edges[order(edges$from), ]
+          }
+        }else{
+            # replace ids with labels for showing in the table
+            for(idx in 1:nrow(edges)){
+              edges$from[idx] <- nodes$label[which(nodes$id==edges$from[idx])]
+              edges$to[idx] <- nodes$label[which(nodes$id==edges$to[idx])]
+            }
+            
+            # sort by  label and remove all ID columns for vis
+            edges <- edges[order(edges$from), ]
+        }
+        
+        nodes <- add_rel_to_nodelist(nodes)
+        
+        edges <- add_rel_to_edgelist(edges)
+      
+        # remove node ids
+        nodes$id <- NULL 
+        # remove edge ids
+        edges$id <- NULL 
+        
+        write.csv(nodes, paste("patient_",pat_id, "_node_relevances.csv",sep=""), row.names = FALSE)
+        write.csv(edges, paste("patient_",pat_id, "_edge_relevances.csv",sep=""), row.names = FALSE)
+        
+        files <- append(files, c(paste("patient_",pat_id, "_node_relevances.csv",sep=""),paste("patient_",pat_id, "_edge_relevances.csv",sep="")))
+      }
       writeLines(logval$logOutput, "logFile.txt")
-      files <- c("node_relevances.csv", "edge_relevances.csv", "logFile.txt")
+      files <- append(files, "logFile.txt")
       
       # create the zip file
       zip(file, files)
+      shinyjs::enable("download")
+      shinyjs::enable("predict")
+      shinyjs::enable("retrain")
+      
     },
     contentType = "application/zip"
   )

@@ -18,7 +18,7 @@ library(ggplot2)
 
 
 ui <- fluidPage(
-  api_path <<- "http://127.0.0.1:5000",
+  #api_path <<- "http://127.0.0.1:5000",
   titlePanel(
     windowTitle = "Interactive XAI Platform",
     title = tags$head(tags$link(rel="icon", 
@@ -133,7 +133,7 @@ ui <- fluidPage(
                                       # choose predefined datasets 
                                       wellPanel(
                                         selectizeInput("choose_a_dataset", h4("Select one of the following datasets:"),
-                                                       choices = fromJSON(content(GET(paste(api_path,"/data/dataset_name",sep=""),type="basic"),"text", encoding = "UTF-8"),flatten = TRUE), selected = 1),
+                                                       choices = list("Synthetic Dataset", "KIRC Dataset"), selected = 1),
                                         actionButton("upload_dataset", "Select dataset", class = "btn-primary")
                                         ),
                                       div(style = "margin-top:-10em",
@@ -222,7 +222,9 @@ ui <- fluidPage(
                                                  tags$div(style = "display:inline-block",
                                                           downloadButton("download", label = "Download Results", class = "btn-success"),
                                                           actionButton("predict", "Predict", class = "btn-primary"),
-                                                          actionButton("retrain", "Retrain", class = "btn-primary")
+                                                          actionButton("retrain", "Retrain", class = "btn-primary"),
+                                                          # placeholder for warning messages
+                                                          htmlOutput("info_download")
                                                  )
                                                  
                                           )
