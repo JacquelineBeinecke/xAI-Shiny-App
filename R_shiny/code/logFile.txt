@@ -1,8 +1,0 @@
-Log File 
-
-Dataset selected: Synthetic Dataset
-GNN TN: 129, FP: 0, FN: 0, TP: 121
-GNN Sensitivity: 1%, Specificity: 1%
-Currently selected: Patient 0, Graph 0
-Amount of modified graphs for this patient: 0
-Patient Information: In Test Data, True label = 0, Predicted label = 0, GNNs prediction confidence = 3.21

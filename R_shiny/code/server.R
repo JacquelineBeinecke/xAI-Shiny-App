@@ -2101,7 +2101,7 @@ server <- function(input, output, session) {
       shinyjs::disable("retrain")
       output$info_download <- renderUI({HTML("")})
       files <- c()
-      for(pat in patient_names[1:10]){
+      for(pat in patient_names){
         # get patient id
         pat_id <- as.numeric(strsplit(pat, split = " ")[[1]][2])
         
@@ -2149,7 +2149,6 @@ server <- function(input, output, session) {
         }
         
         nodes <- add_rel_to_nodelist(nodes)
-        
         edges <- add_rel_to_edgelist(edges)
       
         # remove node ids
@@ -2167,9 +2166,18 @@ server <- function(input, output, session) {
       
       # create the zip file
       zip(file, files)
+      
       shinyjs::enable("download")
       shinyjs::enable("predict")
       shinyjs::enable("retrain")
+      
+      # remove the single files after zip creation
+      for(pat in patient_names){
+        pat_id <- as.numeric(strsplit(pat, split = " ")[[1]][2])
+        unlink(paste("patient_",pat_id, "_node_relevances.csv",sep=""))
+        unlink(paste("patient_",pat_id, "_edge_relevances.csv",sep=""))
+      }
+      unlink("logFile.txt")
       
     },
     contentType = "application/zip"
