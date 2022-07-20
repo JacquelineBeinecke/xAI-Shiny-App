@@ -2088,9 +2088,10 @@ server <- function(input, output, session) {
   ####### Download Results #########
   ##################################
   
-  output$info_download <- renderUI({HTML("<span style='color:gray; font-size:14px'> <br/> The dowload might take a few minutes. </span>")})
+  output$info_download <- renderUI({HTML("<span style='color:gray; font-size:14px'> <br/> The download might take a few minutes. </span>")})
   
-  # download the modified graph, being the current version of edgelist_table and nodelist_table ----------------------------------
+ 
+  #download the modified graph, being the current version of edgelist_table and nodelist_table ----------------------------------
   output$download <- downloadHandler(
     filename = function() {
       paste0("results.zip")
@@ -2104,24 +2105,24 @@ server <- function(input, output, session) {
       for(pat in patient_names){
         # get patient id
         pat_id <- as.numeric(strsplit(pat, split = " ")[[1]][2])
-        
+
         # get the amount of modified graphs saved for this patient
         graph_id <- get_max_graphs(pat_id)
-        
-        # Get node and edge relevance scores 
+
+        # Get node and edge relevance scores
         n_rel <- getNodeRelevances(pat_id, graph_id)
         e_rel <- getEdgeRelevances(pat_id, graph_id)
-        
+
         # get graph of selected dataset and patient
         r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
         stop_for_status(r)
         graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
         graph_df <- data.frame(graph)
-        
+
         nodes <- as.data.frame(graph_df$data[[1]])
         colnames(nodes) <- graph_df$columns[[1]]
         nodes <- nodes[order(nodes$label), ]
-        
+
         edges <- as.data.frame(graph_df$data[[2]])
         colnames(edges) <- graph_df$columns[[2]]
         edges <- edges[order(edges$from), ]
@@ -2133,7 +2134,7 @@ server <- function(input, output, session) {
               edges$from[idx] <- nodes$label[which(nodes$id==edges$from[idx])]
               edges$to[idx] <- nodes$label[which(nodes$id==edges$to[idx])]
             }
-            
+
             # sort by  label and remove all ID columns for vis
             edges <- edges[order(edges$from), ]
           }
@@ -2143,34 +2144,34 @@ server <- function(input, output, session) {
               edges$from[idx] <- nodes$label[which(nodes$id==edges$from[idx])]
               edges$to[idx] <- nodes$label[which(nodes$id==edges$to[idx])]
             }
-            
+
             # sort by  label and remove all ID columns for vis
             edges <- edges[order(edges$from), ]
         }
-        
+
         nodes <- add_rel_to_nodelist(nodes)
         edges <- add_rel_to_edgelist(edges)
-      
+
         # remove node ids
-        nodes$id <- NULL 
+        nodes$id <- NULL
         # remove edge ids
-        edges$id <- NULL 
-        
+        edges$id <- NULL
+
         write.csv(nodes, paste("patient_",pat_id, "_node_relevances.csv",sep=""), row.names = FALSE)
         write.csv(edges, paste("patient_",pat_id, "_edge_relevances.csv",sep=""), row.names = FALSE)
-        
+
         files <- append(files, c(paste("patient_",pat_id, "_node_relevances.csv",sep=""),paste("patient_",pat_id, "_edge_relevances.csv",sep="")))
       }
       writeLines(logval$logOutput, "logFile.txt")
       files <- append(files, "logFile.txt")
-      
+
       # create the zip file
       zip(file, files)
-      
+
       shinyjs::enable("download")
       shinyjs::enable("predict")
       shinyjs::enable("retrain")
-      
+
       # remove the single files after zip creation
       for(pat in patient_names){
         pat_id <- as.numeric(strsplit(pat, split = " ")[[1]][2])
@@ -2178,13 +2179,35 @@ server <- function(input, output, session) {
         unlink(paste("patient_",pat_id, "_edge_relevances.csv",sep=""))
       }
       unlink("logFile.txt")
+
+    },
+    contentType = "application/zip"
+  )
+  
+  ##################################
+  ####### Download Data PKL ########
+  ##################################
+
+  output$download_dataset <- downloadHandler(
+    filename = function() {
+      if(input$choose_a_dataset == "Synthetic Dataset"){
+        paste0("synthetic_dataset.pkl")
+      }
+      if(input$choose_a_dataset == "KIRC Dataset"){
+        paste0("KIRC_dataset.pkl")
+      }
+    },
+    content = function(file) {
+      r <- GET(paste(api_path, "/save/data",sep=""), query = list(dataset_name = input$choose_a_dataset))
+      stop_for_status(r)
+      path <- fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE)
+      
       
     },
     contentType = "application/zip"
   )
   
-  
-  
+
 }
 
   

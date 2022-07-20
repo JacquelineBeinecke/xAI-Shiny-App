@@ -9,6 +9,7 @@ library(zip)
 library(rje)
 library(png)
 library(shinycssloaders)
+library(shinyFiles)
 # for api #
 library(jsonlite)
 library(httr)
@@ -134,7 +135,9 @@ ui <- fluidPage(
                                       wellPanel(
                                         selectizeInput("choose_a_dataset", h4("Select one of the following datasets:"),
                                                        choices = list("Synthetic Dataset", "KIRC Dataset"), selected = 1),
-                                        actionButton("upload_dataset", "Select dataset", class = "btn-primary")
+                                        actionButton("upload_dataset", "Select dataset", class = "btn-primary"),
+                                        div(style="display:inline-block; float:right; margin-top:0.5em",a(href="datasets.zip", "Download datasets as PKL", download=NA, target="_blank")),
+                                        #downloadButton("download_dataset", label = "Download original dataset as PKL", class = "btn-success")
                                         ),
                                       div(style = "margin-top:-10em",
                                           conditionalPanel(condition = "input.upload_dataset > 0",
@@ -223,7 +226,7 @@ ui <- fluidPage(
                                                           downloadButton("download", label = "Download Results", class = "btn-success"),
                                                           actionButton("predict", "Predict", class = "btn-primary"),
                                                           actionButton("retrain", "Retrain", class = "btn-primary"),
-                                                          # placeholder for warning messages
+                                                          # if the user wants to download the results show the following
                                                           htmlOutput("info_download")
                                                  )
                                                  
