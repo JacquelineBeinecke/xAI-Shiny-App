@@ -2183,31 +2183,6 @@ server <- function(input, output, session) {
     },
     contentType = "application/zip"
   )
-  
-  ##################################
-  ####### Download Data PKL ########
-  ##################################
-
-  output$download_dataset <- downloadHandler(
-    filename = function() {
-      if(input$choose_a_dataset == "Synthetic Dataset"){
-        paste0("synthetic_dataset.pkl")
-      }
-      if(input$choose_a_dataset == "KIRC Dataset"){
-        paste0("KIRC_dataset.pkl")
-      }
-    },
-    content = function(file) {
-      r <- GET(paste(api_path, "/save/data",sep=""), query = list(dataset_name = input$choose_a_dataset))
-      stop_for_status(r)
-      path <- fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE)
-      
-      
-    },
-    contentType = "application/zip"
-  )
-  
-
 }
 
   
