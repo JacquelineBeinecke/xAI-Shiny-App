@@ -43,7 +43,7 @@ server <- function(input, output, session) {
       api_path <<- "http://127.0.0.1:5000"
       t <- GET(paste(api_path, "/", sep=""))
       stop_for_status(t)
-      token <- fromJSON(content(t, type = "text", encoding = "UTF-8"))
+      token <<- fromJSON(content(t, type = "text", encoding = "UTF-8"))
       api_path <<- paste(api_path, token, sep="/")
       
       # get list of patient names
@@ -348,8 +348,7 @@ server <- function(input, output, session) {
   
   observeEvent(input$predict, {
     print("predict")
-    # disable forward button
-    shinyjs::disable("forward")
+    disable_all_action_buttons()
     
     # get patient id
     pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
@@ -446,6 +445,10 @@ server <- function(input, output, session) {
     all_added_edges <<- data.frame()
     all_added_nodes <<- data.frame()
     
+    enable_all_action_buttons()
+    # disable forward button
+    shinyjs::disable("forward")
+    shinyjs::disable("undo")
   })
   
 
@@ -2090,7 +2093,7 @@ server <- function(input, output, session) {
   
   output$info_download <- renderUI({HTML("<span style='color:gray; font-size:14px'> <br/> The download might take a few minutes. </span>")})
   
- 
+  
   #download the modified graph, being the current version of edgelist_table and nodelist_table ----------------------------------
   output$download <- downloadHandler(
     filename = function() {
@@ -2100,89 +2103,64 @@ server <- function(input, output, session) {
       shinyjs::disable("download")
       shinyjs::disable("predict")
       shinyjs::disable("retrain")
-      output$info_download <- renderUI({HTML("")})
+      # init list of files
       files <- c()
-      for(pat in patient_names){
-        # get patient id
-        pat_id <- as.numeric(strsplit(pat, split = " ")[[1]][2])
+      # get list of all graphs
+      r <- GET(paste(api_path, "/save/results",sep=""))
+      stop_for_status(r)
+      graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
+      # iterate over all graphs
+      for(i in 1:length(graph)){
+        # load nodes
+        nodes <- as.data.frame(graph[[i]]$data[[1]])
+        colnames(nodes) <- graph[[i]]$columns[[1]]
 
-        # get the amount of modified graphs saved for this patient
-        graph_id <- get_max_graphs(pat_id)
+        # load edges
+        edges <- as.data.frame(graph[[i]]$data[[2]])
+        colnames(edges) <- graph[[i]]$columns[[2]]
 
-        # Get node and edge relevance scores
-        n_rel <- getNodeRelevances(pat_id, graph_id)
-        e_rel <- getEdgeRelevances(pat_id, graph_id)
-
-        # get graph of selected dataset and patient
-        r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
-        stop_for_status(r)
-        graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
-        graph_df <- data.frame(graph)
-
-        nodes <- as.data.frame(graph_df$data[[1]])
-        colnames(nodes) <- graph_df$columns[[1]]
-        nodes <- nodes[order(nodes$label), ]
-
-        edges <- as.data.frame(graph_df$data[[2]])
-        colnames(edges) <- graph_df$columns[[2]]
-        edges <- edges[order(edges$from), ]
-
-        if(ncol(edges)>3){
-          if(nrow(edges)>0){
-            # replace ids with labels for showing in the table
-            for(idx in 1:nrow(edges)){
-              edges$from[idx] <- nodes$label[which(nodes$id==edges$from[idx])]
-              edges$to[idx] <- nodes$label[which(nodes$id==edges$to[idx])]
-            }
-
-            # sort by  label and remove all ID columns for vis
-            edges <- edges[order(edges$from), ]
+        # remove ids and replace with labels
+        if(nrow(edges)>0){
+          # replace ids with labels for showing in the table
+          for(idx in 1:nrow(edges)){
+            edges$from[idx] <- nodes$label[which(nodes$id==edges$from[idx])]
+            edges$to[idx] <- nodes$label[which(nodes$id==edges$to[idx])]
           }
-        }else{
-            # replace ids with labels for showing in the table
-            for(idx in 1:nrow(edges)){
-              edges$from[idx] <- nodes$label[which(nodes$id==edges$from[idx])]
-              edges$to[idx] <- nodes$label[which(nodes$id==edges$to[idx])]
-            }
-
-            # sort by  label and remove all ID columns for vis
-            edges <- edges[order(edges$from), ]
+          # sort by  label and remove all ID columns for vis
+          edges <- edges[order(edges$from), ]
         }
-
-        nodes <- add_rel_to_nodelist(nodes)
-        edges <- add_rel_to_edgelist(edges)
-
+        
         # remove node ids
         nodes$id <- NULL
         # remove edge ids
         edges$id <- NULL
-
-        write.csv(nodes, paste("patient_",pat_id, "_node_relevances.csv",sep=""), row.names = FALSE)
-        write.csv(edges, paste("patient_",pat_id, "_edge_relevances.csv",sep=""), row.names = FALSE)
-
-        files <- append(files, c(paste("patient_",pat_id, "_node_relevances.csv",sep=""),paste("patient_",pat_id, "_edge_relevances.csv",sep="")))
+        
+        write.csv(nodes, paste(token,"_patient_",i-1, "_node_relevances.csv",sep=""), row.names = FALSE)
+        write.csv(edges, paste(token,"_patient_",i-1, "_edge_relevances.csv",sep=""), row.names = FALSE)
+        
+        files <- append(files, c(paste(token,"_patient_",i-1, "_node_relevances.csv",sep=""),paste(token,"_patient_",i-1, "_edge_relevances.csv",sep="")))
       }
-      writeLines(logval$logOutput, "logFile.txt")
-      files <- append(files, "logFile.txt")
-
+      writeLines(logval$logOutput, paste(token,"_logFile.txt", sep=""))
+      files <- append(files, paste(token,"_logFile.txt", sep=""))
+      
       # create the zip file
       zip(file, files)
-
+      
       shinyjs::enable("download")
       shinyjs::enable("predict")
       shinyjs::enable("retrain")
-
+      
       # remove the single files after zip creation
-      for(pat in patient_names){
-        pat_id <- as.numeric(strsplit(pat, split = " ")[[1]][2])
-        unlink(paste("patient_",pat_id, "_node_relevances.csv",sep=""))
-        unlink(paste("patient_",pat_id, "_edge_relevances.csv",sep=""))
+      for(i in 1:length(graph)){
+        unlink(paste(token,"_patient_",i-1, "_node_relevances.csv",sep=""))
+        unlink(paste(token,"_patient_",i-1, "_edge_relevances.csv",sep=""))
       }
-      unlink("logFile.txt")
-
+      unlink(paste(token,"_logFile.txt", sep=""))
+      
     },
     contentType = "application/zip"
   )
+
 }
 
   
