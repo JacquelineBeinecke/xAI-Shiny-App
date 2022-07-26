@@ -84,16 +84,15 @@ server <- function(input, output, session) {
       updateLog(calculate_conf_matrix()[[2]])
       updateLog(calculate_conf_matrix()[[3]])
       
-      # enable interact tab when dataset is selected
-      shinyjs::js$enableTab("Interact")
-      #enable select dataset button when dataset is loaded
-      shinyjs::enable("upload_dataset")
+      
      
   })
   
   # load graph of selected patient
   observeEvent(ignoreInit = TRUE, input$choose_patient, {
     print("upload patient")
+    # this is for showing the loading spinner
+    output$loading <- renderUI({HTML(" ")})
     # write in log that changes were not saved 
     if(nrow(modification_history)>1){
       updateLog("Your modifications for this patient were not saved")
@@ -156,8 +155,10 @@ server <- function(input, output, session) {
   
      calculate_smaller_node_and_edge_list()
   
-     # enable third tab
+     # enable interact tab when dataset is selected
      shinyjs::js$enableTab("Interact")
+     #enable select dataset button when dataset is loaded
+     shinyjs::enable("upload_dataset")
    })
   
   
@@ -1100,7 +1101,7 @@ server <- function(input, output, session) {
         temp_log <- c()
         for(i in 1:ncol(temporary_added_edge_feature)){
           if(i!=ncol(temporary_added_edge_feature)){
-            temp_log[i] <- paste(names(temporary_added_edge_feature)[i], ": ", temporary_added_edge_feature[[i]][1], ", ", sep="")
+            temp_log[i] <- paste(names(temporary_added_edge_feature)[i], ": ", nodelist_table$label[which(nodelist_table$id==temporary_added_edge_feature[[i]][1])], ", ", sep="")
           }else{ # this case is so that there is no comma at the end
             temp_log[i] <- paste(names(temporary_added_edge_feature)[i], ": ", temporary_added_edge_feature[[i]][1], sep="")
           }
@@ -1269,14 +1270,7 @@ server <- function(input, output, session) {
       feature_value <- 0
     }
     
-    # check 1: if the entered value for rel_pos is < 0, an error should appear
-    if (selected_feature == "rel_pos" && feature_value < 0) {
-      output$error_add_node <- renderUI({
-        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The entered relevance value for 'rel_pos' is negative. Make sure that you only enter values greater than or equal to zero for 'rel_pos'! </span>")
-      })
-    } else {
-      
-      # check 2: user has to enter a node label
+    # check 2: user has to enter a node label
       if (label != "") {
         
         # check 3: node label must be unique
@@ -1288,7 +1282,6 @@ server <- function(input, output, session) {
           temporary_added_node_feature[1, which(colnames(temporary_added_node_feature) == selected_feature)] <<- feature_value
           
           # update list of available attributes to enter a value
-          node_features_list <<- node_features_list[-(which(colnames(node_features_list) == selected_feature))]
           feature_names <- colnames(node_features_list)
           updateSelectizeInput(session, "choose_node_feature", choices = feature_names, server = TRUE)
           
@@ -1314,8 +1307,8 @@ server <- function(input, output, session) {
         output$error_add_node <- renderUI({
           HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Node label is missing. Please enter a label for the new node first! </span>")
         })
-      }
-    }
+     }
+    
   })
   
   
@@ -1336,14 +1329,7 @@ server <- function(input, output, session) {
       feature_value <- 0
     }
     
-    # check 1: if the entered value for rel_pos is < 0, an error should appear
-    if (selected_feature == "rel_pos" && feature_value < 0) {
-      output$error_add_node <- renderUI({
-        HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The entered relevance value for 'rel_pos' is negative. Make sure that you only enter values greater than or equal to zero for 'rel_pos'! </span>")
-      })
-    } else {
-      
-      # check 2: user has to enter a node label
+    # check 2: user has to enter a node label
       if (label != "") {
         
         # check 3: node label must be unique
@@ -1414,11 +1400,9 @@ server <- function(input, output, session) {
             temporary_added_node_feature <<- nodelist_table[0, ]
             temporary_added_node_feature[nrow(temporary_added_node_feature) + 1, ] <<- c("label_value", "id_value", rep(0, length(colnames(nodelist_table)) - 2))
             temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)] <<- as.numeric(temporary_added_node_feature[, 3:ncol(temporary_added_node_feature)])
-            node_features_list <<- nodelist_table[, c(3:ncol(nodelist_table))]
             
             # selection list of node features needs to contain all attributes again
-            node_features <- node_features_list
-            feature_names <- colnames(node_features)
+            feature_names <- colnames(node_features_list)
             updateSelectizeInput(session, "choose_node_feature", choices = feature_names, server = TRUE)
             
             # remove error message if user enters label correctly
@@ -1476,7 +1460,7 @@ server <- function(input, output, session) {
         shinyjs::enable("confirm_node_addition")
         
       }
-    }
+    
   })
   
   
@@ -1494,8 +1478,7 @@ server <- function(input, output, session) {
     node_features_list <<- nodelist_table[, c(3:ncol(nodelist_table))]
     
     # selection list of node features needs to contain all attributes again
-    node_features <- node_features_list
-    feature_names <- colnames(node_features)
+    feature_names <- colnames(node_features_list)
     updateSelectizeInput(session, "choose_node_feature", choices = feature_names, server = TRUE)
     
     # remove any error information
