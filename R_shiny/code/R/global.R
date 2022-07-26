@@ -943,7 +943,7 @@ calculate_conf_matrix <- function(){
     geom_text(aes(label = sprintf("%1.0f", Y)), size = 10) +
     scale_fill_manual(values=c("steelblue", "grey")) +
     theme_bw() + theme(legend.position = "none") + labs(x = "Predicted Class", y = "True Class", title = "Confusion matrix") +
-    theme(axis.line=element_blank(),axis.ticks=element_blank(),axis.text.x=element_text(size = 20, margin=margin(-10,0,0,0)),
+    theme(plot.title = element_text(size=23), axis.line=element_blank(),axis.ticks=element_blank(),axis.text.x=element_text(size = 20, margin=margin(-10,0,0,0)),
           axis.text.y=element_text(angle = 90, size = 20, hjust = 0.5, margin=margin(0,-10,0,0)), axis.title.x = element_text(size = 20, margin=margin(0,0,0,0)),
           axis.title.y = element_text(size = 20, margin=margin(0,0,0,0)), title = element_text(size=20),
           panel.border=element_blank(),panel.grid.major=element_blank(),

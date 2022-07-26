@@ -1455,17 +1455,26 @@ server <- function(input, output, session) {
             output$error_add_node <- renderUI({
               HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Entered attribute value has not been saved yet. Press ENTER to save the value or remove the value to initialize with 0! </span>")
             })
+            # enable node feature addition now that addition of last node is done
+            shinyjs::enable("confirm_node_addition")
+            
           }
         } else {
           output$error_add_node <- renderUI({
             HTML("<span style='color:red; font-size:14px'> <br/> ERROR: The entered label is already taken. Please enter a new label! </span>")
           })
+          # enable node feature addition now that addition of last node is done
+          shinyjs::enable("confirm_node_addition")
+          
         }
       } else {
         # info for user that label is missing
         output$error_add_node <- renderUI({
           HTML("<span style='color:red; font-size:14px'> <br/> ERROR: Node label is missing. Please enter a label for the new node first! </span>")
         })
+        # enable node feature addition now that addition of last node is done
+        shinyjs::enable("confirm_node_addition")
+        
       }
     }
   })
