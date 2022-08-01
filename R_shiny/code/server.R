@@ -236,6 +236,8 @@ server <- function(input, output, session) {
   ############################
   
   observeEvent(input$retrain, {
+    # so the spinner start right after pressing
+    output$spin <- renderText({})
     print("retrain")
     disable_all_action_buttons()
     
@@ -348,6 +350,8 @@ server <- function(input, output, session) {
   ############################
   
   observeEvent(input$predict, {
+    # so the spinner start right after pressing
+    output$spin <- renderText({})
     print("predict")
     disable_all_action_buttons()
     
@@ -2086,52 +2090,82 @@ server <- function(input, output, session) {
   output$info_download <- renderUI({HTML("<span style='color:gray; font-size:14px'> <br/> The download might take a few minutes. </span>")})
   
   
+  
   #download the modified graph, being the current version of edgelist_table and nodelist_table ----------------------------------
   output$download <- downloadHandler(
     filename = function() {
       paste0("results.zip")
     },
     content = function(file) {
+      # so the spinner start right after pressing
+      output$spin <- renderText({})
+      # this is for showing the loading spinner
       shinyjs::disable("download")
       shinyjs::disable("predict")
       shinyjs::disable("retrain")
       # init list of files
       files <- c()
-      # get list of all graphs
-      r <- GET(paste(api_path, "/save/results",sep=""))
-      stop_for_status(r)
-      graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
-      # iterate over all graphs
-      for(i in 1:length(graph)){
-        # load nodes
-        nodes <- as.data.frame(graph[[i]]$data[[1]])
-        colnames(nodes) <- graph[[i]]$columns[[1]]
-
-        # load edges
-        edges <- as.data.frame(graph[[i]]$data[[2]])
-        colnames(edges) <- graph[[i]]$columns[[2]]
-
-        # remove ids and replace with labels
-        if(nrow(edges)>0){
-          # replace ids with labels for showing in the table
-          for(idx in 1:nrow(edges)){
-            edges$from[idx] <- nodes$label[which(nodes$id==edges$from[idx])]
-            edges$to[idx] <- nodes$label[which(nodes$id==edges$to[idx])]
-          }
-          # sort by  label and remove all ID columns for vis
-          edges <- edges[order(edges$from), ]
+      
+      # cut the patients into "n" at a time for processing
+      n = 45 #chunks of patients processed at a time
+      
+      amount_pat <- length(patient_names)
+      complete_fits <- amount_pat %/% n
+      rest_fit <- amount_pat %% n
+      # create vectors of 'from' and 'to' patient values
+      from = c()
+      to = c()
+      for(i in 1:(complete_fits+1)){
+        if(i <= complete_fits){
+          from = append(from, (i-1)*n)
+          to = append(to, i*(n-1)+(i-1))
+        }else{
+          from = append(from, (i-1)*n)
+          to = append(to, (i-1)*n+rest_fit-1)
         }
-        
-        # remove node ids
-        nodes$id <- NULL
-        # remove edge ids
-        edges$id <- NULL
-        
-        write.csv(nodes, paste(token,"_patient_",i-1, "_node_relevances.csv",sep=""), row.names = FALSE)
-        write.csv(edges, paste(token,"_patient_",i-1, "_edge_relevances.csv",sep=""), row.names = FALSE)
-        
-        files <- append(files, c(paste(token,"_patient_",i-1, "_node_relevances.csv",sep=""),paste(token,"_patient_",i-1, "_edge_relevances.csv",sep="")))
       }
+      
+      
+      for(chunk in 1:length(from)){
+        # get list of all chunk of graphs
+        r <- GET(paste(api_path, "/save/results",sep=""), query = list(from_pat = from[chunk], to_pat = to[chunk]))
+        stop_for_status(r)
+        graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
+        
+        # iterate over all graphs
+        for(i in 1:length(graph)){
+          # load nodes
+          nodes <- as.data.frame(graph[[i]]$data[[1]])
+          colnames(nodes) <- graph[[i]]$columns[[1]]
+          
+          # load edges
+          edges <- as.data.frame(graph[[i]]$data[[2]])
+          colnames(edges) <- graph[[i]]$columns[[2]]
+          
+          # remove ids and replace with labels
+          if(nrow(edges)>0){
+            # replace ids with labels for showing in the table
+            for(idx in 1:nrow(edges)){
+              edges$from[idx] <- nodes$label[which(nodes$id==edges$from[idx])]
+              edges$to[idx] <- nodes$label[which(nodes$id==edges$to[idx])]
+            }
+            # sort by  label and remove all ID columns for vis
+            edges <- edges[order(edges$from), ]
+          }
+          
+          # remove node ids
+          nodes$id <- NULL
+          # remove edge ids
+          edges$id <- NULL
+          
+          write.csv(nodes, paste(token,"_patient_",n*(chunk-1)+(i-1), "_node_relevances.csv",sep=""), row.names = FALSE)
+          write.csv(edges, paste(token,"_patient_",n*(chunk-1)+(i-1), "_edge_relevances.csv",sep=""), row.names = FALSE)
+          
+          files <- append(files, c(paste(token,"_patient_",n*(chunk-1)+(i-1), "_node_relevances.csv",sep=""),paste(token,"_patient_",n*(chunk-1)+(i-1), "_edge_relevances.csv",sep="")))
+        }
+      }
+      
+      
       writeLines(logval$logOutput, paste(token,"_logFile.txt", sep=""))
       files <- append(files, paste(token,"_logFile.txt", sep=""))
       

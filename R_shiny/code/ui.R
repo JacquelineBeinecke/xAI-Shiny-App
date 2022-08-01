@@ -9,7 +9,7 @@ library(zip)
 library(rje)
 library(png)
 library(shinycssloaders)
-library(shinyFiles)
+
 # for api #
 library(jsonlite)
 library(httr)
@@ -219,16 +219,25 @@ ui <- fluidPage(
                                           column(12,
                                                  htmlOutput("sens_spec"),
                                                  br(),
-                                                 # output confusion matrix
                                                  tags$div(style = "height:250px",plotOutput("confmatrix")),
                                                  br(),
-                                                 tags$div(style = "display:inline-block",
-                                                          downloadButton("download", label = "Download Results", class = "btn-success"),
-                                                          actionButton("predict", "Predict", class = "btn-primary"),
-                                                          actionButton("retrain", "Retrain", class = "btn-primary"),
-                                                          # if the user wants to download the results show the following
-                                                          htmlOutput("info_download")
+                                                 
+                                                 tags$div(style = "display:inline-block;margin-right:-2.3em;margin-top:-10.3em",
+                                                          conditionalPanel(condition = "input.retrain > 0 | input.predict > 0",
+                                                                           withSpinner(htmlOutput("spin"), type=4, size = 0.7, hide.ui = FALSE),
+                                                                           
+                                                          ),
+                                                          
+                                                          tags$div(style = "margin-top:10.3em;margin-right:2.3em",
+                                                                   downloadButton("download", label = "Download Results", class = "btn-success"),
+                                                                   actionButton("predict", "Predict", class = "btn-primary"),
+                                                                   actionButton("retrain", "Retrain", class = "btn-primary"),
+                                                                   # if the user wants to download the results show the following
+                                                                   htmlOutput("info_download")
+                                                          ),
+                                                          
                                                  )
+                                                 
                                                  
                                           )
                                         )
