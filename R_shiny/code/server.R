@@ -1988,7 +1988,8 @@ server <- function(input, output, session) {
     # the events that trigger this
     input$choose_patient,
     input$slider,
-    input$radio
+    input$radio,
+    input$radio_edge_rel
   ), {
     print("reset coloring")
     if(("GNNExplainer" %in% colnames(node_rel)) & ("XAI_2" %in% colnames(node_rel))){

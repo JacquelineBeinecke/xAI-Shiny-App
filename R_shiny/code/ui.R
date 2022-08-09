@@ -134,7 +134,7 @@ ui <- fluidPage(
                                       # choose predefined datasets 
                                       wellPanel(
                                         selectizeInput("choose_a_dataset", h4("Select one of the following datasets:"),
-                                                       choices = list("Synthetic Dataset", "KIRC Dataset"), selected = 1),
+                                                       choices = list("Synthetic Dataset", "KIRC Dataset", "KIRC SubNet"), selected = 1),
                                         actionButton("upload_dataset", "Select dataset", class = "btn-primary"),
                                         div(style="display:inline-block; float:right; margin-top:0.5em",a(href="datasets.zip", "Download datasets as PKL", download=NA, target="_blank")),
                                         #downloadButton("download_dataset", label = "Download original dataset as PKL", class = "btn-success")
