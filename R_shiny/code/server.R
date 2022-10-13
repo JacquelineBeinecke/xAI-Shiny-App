@@ -711,11 +711,13 @@ server <- function(input, output, session) {
     ), {
       print("init first dropdown")
      
+    # nodes that can be deleted  
+    nodes_that_can_be_deleted = calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)
     # input for node deletion
-    updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
+    updateSelectizeInput(session, "choose_node_to_delete", choices = nodes_that_can_be_deleted, server = TRUE)
     
     # disable delete button if only one node is in table
-    if(length(small_nodelist_for_table$label)<=1){
+    if(length(calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)) == 0){
       shinyjs::disable("confirm_node_deletion")
     }
     
@@ -727,13 +729,15 @@ server <- function(input, output, session) {
     node_labels <- first_node_of_connections_that_can_be_removed(small_nodelist_for_table, small_edgelist)
     updateSelectizeInput(session, "choose_first_connected_node_delete", choices = node_labels, server = TRUE)
     
-    if(nrow(small_nodelist_for_table) > 1){
+    if(length(calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)) > 0){
       shinyjs::enable("confirm_node_deletion")
     }
     
-    if(nrow(small_edgelist) != 0){
+    if(nrow(small_edgelist) > 1){
       shinyjs::enable("confirm_edge_deletion")
     }
+    
+    
     # calculate the possible amount of edges between the nodes in small_nodelist_for_table
     # if 5 nodes are shown in the graph 4+3+2+1 edges are possible between these nodes
     # because there cannot be multiple edges between two nodes
@@ -869,8 +873,9 @@ server <- function(input, output, session) {
       all_deleted_nodes_edges[[length(all_deleted_nodes_edges) + 1]] <<- df
     }
     
-    # update list of nodes for node deletion
-    updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
+    nodes_that_can_be_deleted = calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)
+    # input for node deletion
+    updateSelectizeInput(session, "choose_node_to_delete", choices = nodes_that_can_be_deleted, server = TRUE)
     
     # update first input selection for edge addition
     nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
@@ -895,12 +900,16 @@ server <- function(input, output, session) {
     
     Sys.sleep(0.5)
     
-    if(nrow(small_nodelist_for_table) > 1){
-         shinyjs::enable("confirm_node_deletion")
+    if(length(calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)) > 0){
+      shinyjs::enable("confirm_node_deletion")
     }
     
-    if(nrow(small_edgelist) == 0){
+    if(nrow(small_edgelist) %in% c(0,1)){
       shinyjs::disable("confirm_edge_deletion")
+    }
+    
+    if(length(calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)) == 0){
+      shinyjs::disable("confirm_node_deletion")
     }
     
     # show warning for user
@@ -990,9 +999,11 @@ server <- function(input, output, session) {
     })
     
     Sys.sleep(0.5)
-    if(nrow(small_edgelist) != 0){
+    if(nrow(small_edgelist) > 1){
       shinyjs::enable("confirm_edge_deletion")
     }
+    
+    
     # show warning for user
     if(nrow(modification_history)>1){
       output$warning_deletion <- renderUI({
@@ -1215,7 +1226,7 @@ server <- function(input, output, session) {
           })
         }
         # enable edge deletion in case it was disabled before, because there were no more edges
-        if(nrow(small_edgelist) != 0){
+        if(nrow(small_edgelist) > 1){
           shinyjs::enable("confirm_edge_deletion")
         }
       }
@@ -1382,9 +1393,10 @@ server <- function(input, output, session) {
             max_nodes = length(nodelist_table[[1]])
             updateSliderInput(session, "slider", max=max_nodes, step=1)
             
-            # update input selection for node deletion
-            node_labels <- sort(small_nodelist_for_table$label)
-            updateSelectizeInput(session, "choose_node_to_delete", choices = node_labels, server = TRUE)
+            # update input for node deletion
+            nodes_that_can_be_deleted = calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)
+            # input for node deletion
+            updateSelectizeInput(session, "choose_node_to_delete", choices = nodes_that_can_be_deleted, server = TRUE)
             
             # update first input selection for edge addition
             nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
@@ -1437,6 +1449,10 @@ server <- function(input, output, session) {
             }
             # enable node feature addition now that addition of last node is done
             shinyjs::enable("confirm_node_addition")
+            
+            if(length(calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)) > 0){
+              shinyjs::enable("confirm_node_deletion")
+            }
             
           } else {
             # error message when a feature value is entered and requires to press "enter" first
@@ -1576,8 +1592,10 @@ server <- function(input, output, session) {
     all_deleted_nodes <<- all_deleted_nodes[-c(nrow(all_deleted_nodes)), ]
     all_deleted_nodes_edges <<- all_deleted_nodes_edges[-length(all_deleted_nodes_edges)]
     
-    # update list of nodes for node deletion
-    updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
+    # update list of nodes for deletion
+    nodes_that_can_be_deleted = calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)
+    # input for node deletion
+    updateSelectizeInput(session, "choose_node_to_delete", choices = nodes_that_can_be_deleted, server = TRUE)
     
     # update first input selection for edge addition
     nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
@@ -1605,8 +1623,11 @@ server <- function(input, output, session) {
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
     
-    if(nrow(small_edgelist) != 0){
+    if(nrow(small_edgelist) > 1){
       shinyjs::enable("confirm_edge_deletion")
+    }
+    if(length(calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)) > 0){
+      shinyjs::enable("confirm_node_deletion")
     }
   }
   
@@ -1672,8 +1693,11 @@ server <- function(input, output, session) {
       update_shown_edge_table(small_edgelist, nodelist_table)
     })
     
-    if(nrow(small_edgelist) != 0){
+    if(nrow(small_edgelist) > 1){
       shinyjs::enable("confirm_edge_deletion")
+    }
+    if(length(calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)) > 0){
+      shinyjs::enable("confirm_node_deletion")
     }
   }
   
@@ -1755,8 +1779,12 @@ server <- function(input, output, session) {
       shinyjs::disable("undo")
     }
     # disable edge deletion if there are no edges
-    if(nrow(small_edgelist) == 0){
+    if(nrow(small_edgelist) %in% c(1,0)){
       shinyjs::disable("confirm_edge_deletion")
+    }
+    
+    if(length(calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)) == 0){
+      shinyjs::disable("confirm_node_deletion")
     }
     
     # calculate the possible amount of edges between the nodes in small_nodelist_for_table
@@ -1816,7 +1844,9 @@ server <- function(input, output, session) {
     all_added_nodes <<- all_added_nodes[-c(nrow(all_added_nodes)), ]
     
     # update input selection for node deletion
-    updateSelectizeInput(session, "choose_node_to_delete", choices = small_nodelist_for_table$label, server = TRUE)
+    nodes_that_can_be_deleted = calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)
+    # input for node deletion
+    updateSelectizeInput(session, "choose_node_to_delete", choices = nodes_that_can_be_deleted, server = TRUE)
     
     # update first input selection for edge addition
     nodes_that_can_be_connected <- calculate_nodes_that_can_have_edges_added_to_them(small_nodelist_for_table, small_edgelist)
@@ -1830,6 +1860,10 @@ server <- function(input, output, session) {
     # disable undo button, if modification_history is now empty
     if (modification_history[nrow(modification_history), 1] == 0 && modification_history[nrow(modification_history), 2] == 0) {
       shinyjs::disable("undo")
+    }
+    # enable node deletion button
+    if(length(calculate_nodes_that_can_be_deleted(small_nodelist_for_table, small_edgelist)) > 0){
+      shinyjs::enable("confirm_node_deletion")
     }
   }
   

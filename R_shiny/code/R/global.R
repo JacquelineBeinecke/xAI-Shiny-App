@@ -651,6 +651,19 @@ calculate_nodes_that_can_be_connected_to_selected_node <- function(first_node, n
   return(not_connected_nodes_labels)
 }
 
+calculate_nodes_that_can_be_deleted <- function(nodes, edges){
+  nodes_not_removable <- c()
+  for(id in nodes$id){
+    # remove all ids that would result in all edges being removed
+    if(length(which(edges$to != id & edges$from != id)) == 0){
+      nodes_not_removable <- c(nodes_not_removable, nodes$label[which(nodes$id == id)])
+    }
+  }
+  node_labels <- nodes$label[!(nodes$label %in% nodes_not_removable)]
+  
+  return(node_labels)
+}
+  
 first_node_of_connections_that_can_be_removed <- function(nodes, edges){
   nodes_with_edges <- unique(c(edges$from, edges$to))
   node_labels2 <- c()
