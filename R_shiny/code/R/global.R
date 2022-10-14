@@ -545,8 +545,16 @@ delete_graphs <- function(pat_id, graph_idx, max_graph){
   }
 }
 
-getPatInfo <-function(pat_id, graph_idx){
-  r <- GET(paste(api_path, "/patients",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx))
+getPatInfo <-function(pat_id, graph_idx, dataset_name){
+  r <- GET(paste(api_path, "/patients/pat_info",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, dataset_name = dataset_name))
+  stop_for_status(r)
+  info <- fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE)
+  info[4] <- round(as.numeric(info[4]), 2)
+  return(info)
+}
+
+getInitPatInfo <-function(pat_id, graph_idx, dataset_name){
+  r <- GET(paste(api_path, "/patients/init",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, dataset_name = dataset_name))
   stop_for_status(r)
   info <- fromJSON(content(r, type = "text", encoding = "UTF-8"), flatten = TRUE)
   info[4] <- round(as.numeric(info[4]), 2)

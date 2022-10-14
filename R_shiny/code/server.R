@@ -50,14 +50,14 @@ server <- function(input, output, session) {
       patient_names <<- getPatientNames(input$choose_a_dataset)
     
       # train initial GNN on selected dataset
-      r <- POST(paste(api_path, "/gnn",sep=""), encode = "json")
+      r <- POST(paste(api_path, "/gnn",sep=""), body = list(dataset_name = input$choose_a_dataset), encode = "json")
       # throw error if status returns something else than 200 (so if it didnt work)
       stop_for_status(r)
       
       # append patient info to patient number
       for(i in 1:length(patient_names)){
         pat_id = i-1
-        info <- getPatInfo(pat_id, 0)
+        info <- getInitPatInfo(pat_id, 0, input$choose_a_dataset)
         pat_names[i] <<- paste(patient_names[i], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
       }
 
@@ -120,7 +120,7 @@ server <- function(input, output, session) {
      output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,graph_idx)})
      
      # show patient information
-     info <- getPatInfo(pat_id, graph_idx)
+     info <- getInitPatInfo(pat_id, graph_idx, input$choose_a_dataset)
      # update log about selected patient
      updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
      
@@ -280,7 +280,7 @@ server <- function(input, output, session) {
     updateLog("Retraining GNN")
   
     # get retrained graph values
-    r <- POST(paste(api_path, "/nn_retrain",sep=""))
+    r <- POST(paste(api_path, "/nn_retrain",sep=""), body = list(dataset_name = input$choose_a_dataset), encode = "json")
     stop_for_status(r)
     
     # Get node and edge relevance scores 
@@ -319,7 +319,7 @@ server <- function(input, output, session) {
     for(i in 1:length(patient_names)){
       p_id = i-1
       max_g <- get_max_graphs(p_id)
-      info <- getPatInfo(p_id, max_g)
+      info <- getPatInfo(p_id, max_g, input$choose_a_dataset)
       pat_names[i] <- paste(patient_names[i], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
     }
     # Update patient names with new predictions
@@ -327,7 +327,7 @@ server <- function(input, output, session) {
     
     
     # update patient information
-    info <- getPatInfo(pat_id, graph_idx)
+    info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
     # update log about selected patient
     updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
     
@@ -397,7 +397,7 @@ server <- function(input, output, session) {
     updateLog("Predicting on GNN")
     
     # get retrained graph values
-    r <- POST(paste(api_path, "/nn_predict",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
+    r <- POST(paste(api_path, "/nn_predict",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx, dataset_name = input$choose_a_dataset), encode = "json")
     stop_for_status(r)
 
     # Get node and edge relevance scores 
@@ -417,7 +417,7 @@ server <- function(input, output, session) {
     })
     
     # update patient info to patient number
-    info <- getPatInfo(pat_id, graph_idx)
+    info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
     pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
  
     # render sensitivity and specificity
@@ -596,7 +596,7 @@ server <- function(input, output, session) {
     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
     
     # update patient info to patient number
-    info <- getPatInfo(pat_id, graph_idx)
+    info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
     pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
     
     # Update patient names with new predictions
@@ -687,7 +687,7 @@ server <- function(input, output, session) {
     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
     
     # update patient info to patient number
-    info <- getPatInfo(pat_id, graph_idx)
+    info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
     pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
     
     # Update patient names with new predictions
