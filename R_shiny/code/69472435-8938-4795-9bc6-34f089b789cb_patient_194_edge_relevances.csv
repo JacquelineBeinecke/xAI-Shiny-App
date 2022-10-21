@@ -1,6 +1,0 @@
-"from","to","Saliency","IntegratedGradients"
-"MGAT3","MGAT4B","1.0","0.59"
-"MGAT3","MGAT5","0.83","1.0"
-"MGAT4B","MGAT5","0.58","0.7"
-"MGAT4B","MGAT5B","0.71","0.89"
-"MGAT5","MGAT5B","0.55","0.41"
