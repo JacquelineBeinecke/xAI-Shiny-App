@@ -108,9 +108,9 @@ getPatientNames <- function(dataset){
   return(patient_names)
 }
 
-getNodeRelevances <- function(pat_id, graph_idx){
+getNodeRelevances <- function(pat_id, graph_idx, dataset_name){
   # get node relevances from api
-  r <- GET(paste(api_path, "/importances/nodes",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = "gnnexplainer"))
+  r <- GET(paste(api_path, "/importances/nodes",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = "gnnexplainer", dataset_name = dataset_name))
   stop_for_status(r)
   node_rel <- data.frame(t(fromJSON(content(r, type = "text", encoding = "UTF-8"))))
   colnames(node_rel) <- c("node_ids", "GNNExplainer")
@@ -119,15 +119,15 @@ getNodeRelevances <- function(pat_id, graph_idx){
   return(node_rel)
 }
 
-getEdgeRelevances <- function(pat_id, graph_idx){
+getEdgeRelevances <- function(pat_id, graph_idx, dataset_name){
   # get edge relevances from api (IG)
-  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = "ig"))
+  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = "ig", dataset_name = dataset_name))
   stop_for_status(r)
   edge_rel_ig <- data.frame(t(fromJSON(content(r, type = "text", encoding = "UTF-8"))))
   colnames(edge_rel_ig) <- c("edge_ids", "Integrated Gradients")
   
   # get edge relevances from api (Saliency)
-  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = "saliency"))
+  r <- GET(paste(api_path, "/importances/edges",sep=""), query = list(patient_id = pat_id, graph_id = graph_idx, method = "saliency", dataset_name = dataset_name))
   stop_for_status(r)
   edge_rel_saliency <- data.frame(t(fromJSON(content(r, type = "text", encoding = "UTF-8"))))
   colnames(edge_rel_saliency) <- c("edge_ids", "Saliency")

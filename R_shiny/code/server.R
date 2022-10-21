@@ -125,8 +125,8 @@ server <- function(input, output, session) {
      updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
      
      # Get node and edge relevance scores 
-     node_rel <<- getNodeRelevances(pat_id, graph_idx)
-     edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+     node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+     edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
      
      # get graph of selected dataset and patient
      r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
@@ -284,8 +284,8 @@ server <- function(input, output, session) {
     stop_for_status(r)
     
     # Get node and edge relevance scores 
-    node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "One color (default)")
@@ -401,8 +401,8 @@ server <- function(input, output, session) {
     stop_for_status(r)
 
     # Get node and edge relevance scores 
-    node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "One color (default)")
@@ -556,8 +556,8 @@ server <- function(input, output, session) {
     load_graph_from_json(graph)
     
     # Get node and edge relevance scores 
-    node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
@@ -633,8 +633,8 @@ server <- function(input, output, session) {
     load_graph_from_json(graph)
     
     # Get node and edge relevance scores 
-    node_rel <<- getNodeRelevances(pat_id, graph_idx)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
@@ -2163,7 +2163,7 @@ server <- function(input, output, session) {
       
       for(chunk in 1:length(from)){
         # get list of all chunk of graphs
-        r <- GET(paste(api_path, "/save/results",sep=""), query = list(from_pat = from[chunk], to_pat = to[chunk]))
+        r <- GET(paste(api_path, "/save/results",sep=""), query = list(from_pat = from[chunk], to_pat = to[chunk], dataset_name = input$choose_a_dataset))
         stop_for_status(r)
         graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
         
