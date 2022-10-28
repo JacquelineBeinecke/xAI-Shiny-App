@@ -1875,7 +1875,7 @@ server <- function(input, output, session) {
     # get patient id
     pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
     # get selected edge relevances
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx)
+    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
 
     # update edge tooltip title (only if edges are given)
     small_edgelist$title <- update_edge_tooltip(nodelist_table, small_edgelist)
