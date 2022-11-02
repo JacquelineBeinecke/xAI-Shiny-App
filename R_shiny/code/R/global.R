@@ -233,7 +233,7 @@ update_node_tooltip <- function(nodelist, edgelist){
 update_edge_tooltip <- function(nodelist, edgelist){
   # add relevances to edgelist
   edgelist <- add_rel_to_edgelist(edgelist)
-
+  
   # tooltip for edges: translate node ids into label names, create html String containing tooltip information: "from-to", rel_pos, rel_pos_neg, then create additional column "title" in edges
   edges_tooltip <- edgelist[, which(colnames(edgelist) %in% c("from","to","Integrated Gradients","Saliency"))]
   string <- c()
@@ -288,10 +288,10 @@ add_rel_to_nodelist <- function(nodes){
 }
 
 add_rel_to_edgelist <- function(edges){
-  # sort node_relevances so they match the nodelist
+  # sort edge_relevances so they match the nodelist
   e_rel <- edge_rel[match(edges[["id"]], edge_rel[["edge_ids"]]),]
   
-  # now cbind relevances values to nodelist
+  # now cbind relevances values to edgelist
   if(ncol(e_rel)>2){
     edges <- cbind(edges, data.frame(e_rel[, 2:ncol(e_rel)]))
   }else{
@@ -319,7 +319,7 @@ get_rel_colors_for_edge <- function(edgelist, method){
   # add relevances to nodelist
   edges <- add_rel_to_edgelist(edgelist)
   
-  if(method == "ig"){
+    if(method == "ig"){
     values <- edges[["Integrated Gradients"]]
   }
   if(method == "saliency"){
@@ -355,8 +355,8 @@ get_rel_colors_for_edge <- function(edgelist, method){
 get_rel_colors_for_node <- function(nodelist, method){
   # add relevances to nodelist
   nodes <- add_rel_to_nodelist(nodelist)
-  
-  if(method == "GNNExplainer"){
+
+    if(method == "GNNExplainer"){
     # define amount of different groups to differentiate by color and set the same amount of colors
     amount <- 5
     #pos_colors <- c("#FAFAFA", "#E0E0E0", "#9E9E9E", "#616161", "#212121") #light to dark (left to right)

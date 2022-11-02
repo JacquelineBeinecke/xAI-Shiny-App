@@ -101,26 +101,41 @@ server <- function(input, output, session) {
      pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
      
      # get the amount of modified graphs saved for this patient
-     graph_idx <<- get_max_graphs(pat_id)
+     max_graph_idx <<- get_max_graphs(pat_id)
      
      # update log about selected patient
      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
-     updateLog(paste("Amount of modified graphs for this patient: ", graph_idx, sep=""))
+     updateLog(paste("Amount of modified graphs for this patient: ", max_graph_idx, sep=""))
      
      # update backward and forward button
-     if(graph_idx == 0){
+     if(max_graph_idx == 0){
        shinyjs::disable("backward")
        shinyjs::disable("forward")
      }else{
-       shinyjs::enable("backward")
-       shinyjs::disable("forward")
+       if(graph_idx==0){
+         shinyjs::disable("backward")
+         shinyjs::enable("forward")
+       }
+       if(graph_idx==max_graph_idx){
+         shinyjs::enable("backward")
+         shinyjs::disable("forward")
+       }
+       if(graph_idx > 0 & graph_idx < max_graph_idx){
+         shinyjs::enable("backward")
+         shinyjs::enable("forward")
+       }
      }
      
      # empty warning when new patient is selected
-     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,graph_idx)})
+     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph_idx)})
      
      # show patient information
-     info <- getInitPatInfo(pat_id, graph_idx, input$choose_a_dataset)
+     if(graph_idx!=0){
+       info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
+     }else{
+       info <- getInitPatInfo(pat_id, graph_idx, input$choose_a_dataset)
+     }
+     
      # update log about selected patient
      updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
      
@@ -270,10 +285,6 @@ server <- function(input, output, session) {
       
       # send modifications to API
       post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
-      
-      
-      # update log about selected patient
-      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
     }
     
     # update log about Retraining
@@ -325,11 +336,8 @@ server <- function(input, output, session) {
     # Update patient names with new predictions
     updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
     
-    
     # update patient information
     info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
-    # update log about selected patient
-    updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
     
     # reset modification history
     modification_history <<- data.frame(action = c(0), element = c(0))
@@ -438,10 +446,7 @@ server <- function(input, output, session) {
     
     # Update patient names with new predictions
     updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
-    
-    # update log about selected patient
-    updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
-    
+  
     # reset modification history
     modification_history <<- data.frame(action = c(0), element = c(0))
     all_deleted_nodes <<- data.frame()
@@ -545,9 +550,6 @@ server <- function(input, output, session) {
     # update graph id
     graph_idx <<- graph_idx - 1
     
-    # update log about selected patient
-    updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
-    
     # restore patient graph
     r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
     stop_for_status(r)
@@ -600,10 +602,10 @@ server <- function(input, output, session) {
     pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
     
     # Update patient names with new predictions
-    updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
+    updateSelectizeInput(session, "choose_patient", choices = pat_names)
     
     # update log about selected patient
-    updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
+    #updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
     
   })
   
@@ -621,9 +623,6 @@ server <- function(input, output, session) {
     
     # update graph id
     graph_idx <<- graph_idx + 1
-    
-    # update log about selected patient
-    updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
     
     # restore patient graph
     r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
@@ -692,9 +691,7 @@ server <- function(input, output, session) {
     
     # Update patient names with new predictions
     updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
-    # update log about selected patient
-    updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
-    
+  
   })
   
   ##################################
@@ -1122,7 +1119,10 @@ server <- function(input, output, session) {
           }
         }
         updateLog(paste("Edge added: ", paste(temp_log, collapse=""), sep=""))
-       
+        
+        # set relevance value to 0 as default (two xai methods two zeros, add more if there are more methods)
+        edge_rel <<- rbind(edge_rel, c(id_edge,0,0))
+        
         # add tooltip information for the new edge (from-to, rel_pos, rel_pos_neg)
         added_edge <- temporary_added_edge_feature
         added_edge$title <- update_edge_tooltip(nodelist_table, added_edge)
@@ -1363,6 +1363,9 @@ server <- function(input, output, session) {
             modification_history[nrow(modification_history) + 1, ] <<- c("added", "node")
             all_added_nodes <<- rbind(all_added_nodes, temporary_added_node_feature)
             
+            # set relevance value to 0 as default (one xai method one zeros, add more if there are more methods)
+            node_rel <<- rbind(node_rel, c(id, 0.0))
+
             # prepare node for graph update - add tooltip information: label, rel_pos, rel_pos_neg, degree
             added_node <- temporary_added_node_feature
             added_node$title <- update_node_tooltip(added_node, edgelist_table)
@@ -1709,6 +1712,8 @@ server <- function(input, output, session) {
     
     # update global edgelist
     edgelist_table <<- edgelist_table[-c(which(edgelist_table$id == delete_edge$id)), ]
+    # update global edge relevance list
+    edge_rel <<- edge_rel[-c(which(edge_rel$edge_ids == delete_edge$id)), ]
     
     # check if the edge we want to now remove is in the small_edgelist
     # don't update anything if the edge is not in small_edgelist
@@ -1817,6 +1822,8 @@ server <- function(input, output, session) {
     
     # update global nodelist
     nodelist_table <<- nodelist_table[-c(which(nodelist_table$label == delete_node$label)), ]
+    # update global node relevance list
+    node_rel <<- node_rel[-c(which(node_rel$node_ids == delete_node$id)), ]
     
     # check if the node we want to now remove is in the small_nodelist_for_table or small_nodelist_for_graph
     # don't update anything if the node is not in one of them
@@ -1872,11 +1879,6 @@ server <- function(input, output, session) {
   ########################################################
   
   observeEvent(ignoreInit = T, c(input$radio_edge_rel), {
-    # get patient id
-    pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
-    # get selected edge relevances
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
-
     # update edge tooltip title (only if edges are given)
     small_edgelist$title <- update_edge_tooltip(nodelist_table, small_edgelist)
     small_edgelist$color <- get_rel_colors_for_edge(small_edgelist, input$radio_edge_rel)
@@ -1918,11 +1920,11 @@ server <- function(input, output, session) {
         plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
         legend("top", legend = c(colors_and_borders[["Borders"]]), pch=21, pt.cex=2.5, cex=1.5, bty='n',
                col = "#0a4ea3", ncol = 3, pt.bg =colors_and_borders[["Colors"]])
-        
+
         output$range <- renderUI({
-          HTML(paste0("<p><b>", "Range: ", "</b>", "(", round(min(node_rel$GNNExplainer), 1), ")", " - ", "(", round(max(node_rel$GNNExplainer), 1), ")", "</p>"))
+          HTML(paste0("<p><b>", "Range: ", "</b>", "(", min(node_rel$GNNExplainer), ")", " - ", "(", max(node_rel$GNNExplainer), ")", "</p>"))
         })
-        
+
         # update graph
         visNetworkProxy("graph") %>%
           visUpdateNodes(nodes = colors_and_borders[["Nodes"]])
