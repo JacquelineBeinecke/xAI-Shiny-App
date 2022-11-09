@@ -568,9 +568,9 @@ getInitPatInfo <-function(pat_id, graph_idx, dataset_name){
 ovwriting_warning <- function(graph_idx, max_graph){
   if(graph_idx != max_graph){
     if(max_graph-graph_idx>1){
-      message <- HTML(paste0("<span style='color:red; font-size:14px'> <br/> Warning: If you perform modifications on this graph and save them by pressing predict/retrain the following graphs well be overwritten: ", graph_idx+1,"-", max_graph ,"</span>"))
+      message <- HTML(paste0("<span style='color:red; font-size:14px'> <br/> Warning: If you perform modifications on this graph and save them by pressing predict/retrain the following graphs will be overwritten: ", graph_idx+1,"-", max_graph ,"</span>"))
     }else{
-      message <- HTML(paste0("<span style='color:red; font-size:14px'> <br/> Warning: If you perform modifications on this graph and save them by pressing predict/retrain the following graph well be overwritten: ", graph_idx+1,"</span>"))
+      message <- HTML(paste0("<span style='color:red; font-size:14px'> <br/> Warning: If you perform modifications on this graph and save them by pressing predict/retrain the following graph will be overwritten: ", graph_idx+1,"</span>"))
     }
   }else{
       message <- HTML(" ")

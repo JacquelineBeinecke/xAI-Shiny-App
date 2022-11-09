@@ -48,19 +48,23 @@ server <- function(input, output, session) {
       
       # get list of patient names
       patient_names <<- getPatientNames(input$choose_a_dataset)
-    
+      
       # train initial GNN on selected dataset
       r <- POST(paste(api_path, "/gnn",sep=""), body = list(dataset_name = input$choose_a_dataset), encode = "json")
       # throw error if status returns something else than 200 (so if it didnt work)
       stop_for_status(r)
       
-      # append patient info to patient number
+      # append patient info to patient
       for(i in 1:length(patient_names)){
         pat_id = i-1
         info <- getInitPatInfo(pat_id, 0, input$choose_a_dataset)
         pat_names[i] <<- paste(patient_names[i], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
       }
-
+      
+      # init list that is indexed by pat_id+1 (because Ids start at 0 but R indexes start with 1...) 
+      # and contains amount of graphs per patient
+      current_graph_ids <<- rep(0, length(patient_names))
+      
       # This is so that a new patient gets selected and the loading of a new graph gets triggered 
       updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[0])
       # This loads the first patient of the new dataset
@@ -99,12 +103,16 @@ server <- function(input, output, session) {
     }
      # get patient id
      pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
-     
+
      # get the amount of modified graphs saved for this patient
      max_graph_idx <<- get_max_graphs(pat_id)
-     
+     # if the patient was changed update the graph_id to a valid one
+     if(max_graph_idx < current_graph_ids[pat_id+1]){
+       current_graph_ids[pat_id+1] <<- max_graph_idx
+     }
+
      # update log about selected patient
-     updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
+     updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", current_graph_ids[pat_id+1], sep=""))
      updateLog(paste("Amount of modified graphs for this patient: ", max_graph_idx, sep=""))
      
      # update backward and forward button
@@ -112,39 +120,39 @@ server <- function(input, output, session) {
        shinyjs::disable("backward")
        shinyjs::disable("forward")
      }else{
-       if(graph_idx==0){
+       if(current_graph_ids[pat_id+1]==0){
          shinyjs::disable("backward")
          shinyjs::enable("forward")
        }
-       if(graph_idx==max_graph_idx){
+       if(current_graph_ids[pat_id+1]==max_graph_idx){
          shinyjs::enable("backward")
          shinyjs::disable("forward")
        }
-       if(graph_idx > 0 & graph_idx < max_graph_idx){
+       if(current_graph_ids[pat_id+1] > 0 & current_graph_ids[pat_id+1] < max_graph_idx){
          shinyjs::enable("backward")
          shinyjs::enable("forward")
        }
      }
      
      # empty warning when new patient is selected
-     output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph_idx)})
+     output$warning_overwriting <- renderUI({ovwriting_warning(current_graph_ids[pat_id+1],max_graph_idx)})
      
      # show patient information
-     if(graph_idx!=0){
-       info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
+     if(current_graph_ids[pat_id+1]!=0){
+       info <- getPatInfo(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
      }else{
-       info <- getInitPatInfo(pat_id, graph_idx, input$choose_a_dataset)
+       info <- getInitPatInfo(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
      }
      
      # update log about selected patient
      updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
      
      # Get node and edge relevance scores 
-     node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
-     edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+     node_rel <<- getNodeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
+     edge_rel <<- getEdgeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
      
      # get graph of selected dataset and patient
-     r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
+     r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = current_graph_ids[pat_id+1]))
      stop_for_status(r)
      graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
      
@@ -258,33 +266,36 @@ server <- function(input, output, session) {
     
     # get patient id
     pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
+    max_graph <- get_max_graphs(pat_id)
     
     # post modification history to API if changes are made
     if(nrow(modification_history)>1){
       # if a graph that is not the latest graph is changed, deleted all graphs with higher id
-      max_graph <- get_max_graphs(pat_id)
-      if(graph_idx != max_graph){
-        delete_graphs(pat_id, graph_idx, max_graph)
-        if(max_graph-graph_idx > 1){
-          updateLog(paste("The following modified graphs were deleted: ",graph_idx+1,"-", max_graph, sep=""))
+      if(current_graph_ids[pat_id+1] != max_graph){
+        delete_graphs(pat_id, current_graph_ids[pat_id+1], max_graph)
+        if(max_graph-current_graph_ids[pat_id+1] > 1){
+          updateLog(paste("The following modified graphs were deleted: ",current_graph_ids[pat_id+1]+1,"-", max_graph, sep=""))
         }else{
-          updateLog(paste("The following modified graph was deleted: ",graph_idx+1, sep=""))
+          updateLog(paste("The following modified graph was deleted: ",current_graph_ids[pat_id+1]+1, sep=""))
         }
       }
       
       # update log about selected patient
-      updateLog(paste("Changes saved for patient ", pat_id, " in graph number ", graph_idx+1, sep=""))
+      updateLog(paste("Changes saved for patient ", pat_id, " in graph number ", current_graph_ids[pat_id+1]+1, sep=""))
       
       # create deepcopy of graph in the backend
-      r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
+      r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = current_graph_ids[pat_id+1]), encode = "json")
       # throw error if status returns something else than 200 (so if it didnt work)
       stop_for_status(r)
       
-      # update graph_idx, so that changes now get made on the deep_copy and not the modification.
-      graph_idx <<- graph_idx +1
+      # update current_graph_ids[pat_id+1], so that changes now get made on the deep_copy and not the modification.
+      current_graph_ids[pat_id+1] <<- current_graph_ids[pat_id+1] +1
       
       # send modifications to API
-      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
+      post_modifications(pat_id, current_graph_ids[pat_id+1], modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges)
+      
+      # update max graph
+      max_graph <- get_max_graphs(pat_id)
     }
     
     # update log about Retraining
@@ -295,8 +306,8 @@ server <- function(input, output, session) {
     stop_for_status(r)
     
     # Get node and edge relevance scores 
-    node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+    node_rel <<- getNodeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
+    edge_rel <<- getEdgeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "One color (default)")
@@ -337,7 +348,7 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
     
     # update patient information
-    info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
+    info <- getPatInfo(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     
     # reset modification history
     modification_history <<- data.frame(action = c(0), element = c(0))
@@ -351,6 +362,11 @@ server <- function(input, output, session) {
     # disable forward button
     shinyjs::disable("forward")
     shinyjs::disable("undo")
+    
+    # disable backward button if no new graph was saved (if no modifications have been made)
+    if(max_graph == 0){
+      shinyjs::disable("backward")
+    }
   })
   
   ############################
@@ -365,52 +381,54 @@ server <- function(input, output, session) {
     
     # get patient id
     pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
+    max_graph <- get_max_graphs(pat_id)
     
     # post modification history to API if changes are made
     if(nrow(modification_history)>1){
       # if a graph that is not the latest graph is changed, deleted all graphs with higher id
-      max_graph <- get_max_graphs(pat_id)
-      
-      if(graph_idx != max_graph){
-        delete_graphs(pat_id, graph_idx, max_graph)
-        if(max_graph-graph_idx > 1){
-          updateLog(paste("The following modified graphs were deleted: ",graph_idx+1,"-", max_graph, sep=""))
+      if(current_graph_ids[pat_id+1] != max_graph){
+        delete_graphs(pat_id, current_graph_ids[pat_id+1], max_graph)
+        if(max_graph-current_graph_ids[pat_id+1] > 1){
+          updateLog(paste("The following modified graphs were deleted: ",current_graph_ids[pat_id+1]+1,"-", max_graph, sep=""))
         }else{
-          updateLog(paste("The following modified graph was deleted: ",graph_idx+1, sep=""))
+          updateLog(paste("The following modified graph was deleted: ",current_graph_ids[pat_id+1]+1, sep=""))
         }
       }
       
       # update log about selected patient
-      updateLog(paste("Changes saved for patient ", pat_id, " in graph number ", graph_idx+1,sep=""))
+      updateLog(paste("Changes saved for patient ", pat_id, " in graph number ", current_graph_ids[pat_id+1]+1,sep=""))
       
       # create deepcopy of graph in the backend
-      r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx), encode = "json")
+      r <- POST(paste(api_path, "/deep_copy",sep=""), body = list(patient_id = pat_id, graph_id = current_graph_ids[pat_id+1]), encode = "json")
       # throw error if status returns something else than 200 (so if it didnt work)
       stop_for_status(r)
       
-      # update graph_idx, so that changes now get made on the deep_copy and not the modification.
-      graph_idx <<- graph_idx +1
+      # update current_graph_ids[pat_id+1], so that changes now get made on the deep_copy and not the modification.
+      current_graph_ids[pat_id+1] <<- current_graph_ids[pat_id+1] + 1
  
       # send modifications to API
-      post_modifications(pat_id, graph_idx, modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges) 
+      post_modifications(pat_id, current_graph_ids[pat_id+1], modification_history, all_deleted_nodes, all_added_nodes, all_deleted_edges, all_added_edges, all_deleted_nodes_edges) 
       
       # enable restore button
       shinyjs::enable("backward")
       
       # update log about selected patient
-      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", graph_idx, sep=""))
+      updateLog(paste("Currently selected: Patient ", pat_id, ", Graph ", current_graph_ids[pat_id+1], sep=""))
+      
+      # update max graph
+      max_graph <- get_max_graphs(pat_id)
       
     }
     # update log about Predicting
     updateLog("Predicting on GNN")
     
     # get retrained graph values
-    r <- POST(paste(api_path, "/nn_predict",sep=""), body = list(patient_id = pat_id, graph_id = graph_idx, dataset_name = input$choose_a_dataset), encode = "json")
+    r <- POST(paste(api_path, "/nn_predict",sep=""), body = list(patient_id = pat_id, graph_id = current_graph_ids[pat_id+1], dataset_name = input$choose_a_dataset), encode = "json")
     stop_for_status(r)
 
     # Get node and edge relevance scores 
-    node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+    node_rel <<- getNodeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
+    edge_rel <<- getEdgeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     
     # reset the select Input of color nodes by
     updateSelectInput(session, "color_nodes", selected = "One color (default)")
@@ -425,7 +443,7 @@ server <- function(input, output, session) {
     })
     
     # update patient info to patient number
-    info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
+    info <- getPatInfo(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
  
     # render sensitivity and specificity
@@ -459,6 +477,11 @@ server <- function(input, output, session) {
     # disable forward button
     shinyjs::disable("forward")
     shinyjs::disable("undo")
+
+    # disable backward button if no new graph was saved (if no modifications have been made)
+    if(max_graph == 0){
+      shinyjs::disable("backward")
+    }
   })
   
 
@@ -548,18 +571,18 @@ server <- function(input, output, session) {
     pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
     
     # update graph id
-    graph_idx <<- graph_idx - 1
+    current_graph_ids[pat_id+1] <<- current_graph_ids[pat_id+1] - 1
     
     # restore patient graph
-    r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
+    r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = current_graph_ids[pat_id+1]))
     stop_for_status(r)
     graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
     
     load_graph_from_json(graph)
     
     # Get node and edge relevance scores 
-    node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+    node_rel <<- getNodeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
+    edge_rel <<- getEdgeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
@@ -588,21 +611,21 @@ server <- function(input, output, session) {
     enable_all_action_buttons()
     
     # disable backward button if there is no later graph
-    if(graph_idx == 0){
+    if(current_graph_ids[pat_id+1] == 0){
       shinyjs::disable("backward")
     }
     # disable undo button 
     shinyjs::disable("undo")
     
     # show warning for user
-    output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
+    output$warning_overwriting <- renderUI({ovwriting_warning(current_graph_ids[pat_id+1],max_graph)})
     
     # update patient info to patient number
-    info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
+    info <- getPatInfo(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
     
     # Update patient names with new predictions
-    updateSelectizeInput(session, "choose_patient", choices = pat_names)
+    updateSelectizeInput(session, "choose_patient", choices = pat_names, selected = pat_names[pat_id+1])
     
     # update log about selected patient
     #updateLog(paste("Patient Information: In ", info[1], ", True label = ", info[2], ", Predicted label = ", info[3], ", GNNs prediction confidence = ", info[4], sep=""))
@@ -622,18 +645,18 @@ server <- function(input, output, session) {
     pat_id <- as.numeric(strsplit(input$choose_patient, split = " ")[[1]][2])
     
     # update graph id
-    graph_idx <<- graph_idx + 1
+    current_graph_ids[pat_id+1] <<- current_graph_ids[pat_id+1] + 1
     
     # restore patient graph
-    r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = graph_idx))
+    r <- GET(paste(api_path, "/data/dataset",sep=""), query = list(dataset_name = input$choose_a_dataset, patient_id = pat_id, graph_id = current_graph_ids[pat_id+1]))
     stop_for_status(r)
     graph <- fromJSON(content(r, type = "text", encoding = "UTF-8"))
     
     load_graph_from_json(graph)
     
     # Get node and edge relevance scores 
-    node_rel <<- getNodeRelevances(pat_id, graph_idx, input$choose_a_dataset)
-    edge_rel <<- getEdgeRelevances(pat_id, graph_idx, input$choose_a_dataset)
+    node_rel <<- getNodeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
+    edge_rel <<- getEdgeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     
     # update max Slider value to amount of nodes
     max = length(nodelist_table[[1]])
@@ -672,10 +695,10 @@ server <- function(input, output, session) {
     # enable all buttons now that data is loaded
     enable_all_action_buttons()
     
-    if(graph_idx == max_graph){
+    if(current_graph_ids[pat_id+1] == max_graph){
       shinyjs::disable("forward")
     }
-    if(graph_idx == 0){
+    if(current_graph_ids[pat_id+1] == 0){
       shinyjs::disable("backward")
     }
     
@@ -683,10 +706,10 @@ server <- function(input, output, session) {
     shinyjs::disable("undo")
     
     # show warning for user
-    output$warning_overwriting <- renderUI({ovwriting_warning(graph_idx,max_graph)})
+    output$warning_overwriting <- renderUI({ovwriting_warning(current_graph_ids[pat_id+1],max_graph)})
     
     # update patient info to patient number
-    info <- getPatInfo(pat_id, graph_idx, input$choose_a_dataset)
+    info <- getPatInfo(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     pat_names[pat_id+1] <- paste(patient_names[pat_id+1], " (In ", info[1], ", True label: ", info[2], ", Predicted label: ", info[3], ", GNNs prediction confidence: ", info[4], ")", sep="")
     
     # Update patient names with new predictions

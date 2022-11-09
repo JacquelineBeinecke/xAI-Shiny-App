@@ -121,7 +121,7 @@ ui <- fluidPage(
                                        ),
                                        div(
                                          tags$h3("Retrain or Predict"),
-                                         tags$p("Use the modified graph data for retraining or predictions on your GNN.")
+                                         tags$p("Use the modified graph data for retraining or predictions on the GNN.")
                                        )
                                    )
                                )
@@ -176,7 +176,7 @@ ui <- fluidPage(
                                conditionalPanel(condition = "input.hide_vis_buttons % 2 == 0",
                                column(7,
                                       column(6,
-                                             radioButtons("radio", label = HTML("<h3>","Sort nodes by", "</h3>"),
+                                             radioButtons("radio", label = HTML("<h3>","Sort nodes by:", "</h3>"),
                                                           choices = list("Name (A to Z)" = "name_az",
                                                                          "Name (Z to A)" = "name_za",
                                                                          "Degree (high to low)" = "degree_highlow",
@@ -190,7 +190,7 @@ ui <- fluidPage(
                                              
                                       ),
                                       column(6,
-                                             radioButtons("radio_edge_rel", label = HTML("<h3>","Select XAI Method for edges", "</h3>"),
+                                             radioButtons("radio_edge_rel", label = HTML("<h3>","Select XAI Method for edges:", "</h3>"),
                                                           choices = list("Saliency" = "saliency",
                                                                          "Integrated Gradients" = "ig"), 
                                                           selected = "saliency", width = "500px"),
@@ -209,7 +209,7 @@ ui <- fluidPage(
                                       #default nodes to display is 3 (value = 3)
                                       #default max is 100 but this gets updated as soon as node and edge data are uploaded
                                       #then the max value will always be the amount of nodes in the data
-                                      sliderInput("slider", label = HTML("<h3>","<p style='line-height:60%'>","Select how many nodes to display","</p></h3>", "<h5>","(their next neighbours will also be displayed in the graph)","</h5>"), 
+                                      sliderInput("slider", label = HTML("<h3>","<p style='line-height:60%'>","Select how many sorted nodes to display:","</p></h3>", "<h5>","(their next neighbours will also be displayed in the graph)","</h5>"), 
                                                   min = 1, max = 100, value = 3, width = "500px", step=1) 
                                     ),
                                
