@@ -21,8 +21,8 @@ library(ggplot2)
 ui <- fluidPage(
   #api_path <<- "http://127.0.0.1:5000",
   titlePanel(
-    windowTitle = "Interactive XAI Platform",
-    title = tags$head(tags$link(rel="icon", 
+    windowTitle = "CLARUS",
+    title = tags$head(tags$link(rel="icon", #<i class="fa-solid fa-magnifying-glass"></i>
                                 href="data:image/x-icon;base64,AAABAAEAEBAQAAEAetc", 
                                 type="image/x-icon")
     )),
@@ -32,7 +32,7 @@ ui <- fluidPage(
   shinyjs::inlineCSS(app_css),
   
   # header with title of the software
-  titlePanel(h1("Interactive XAI Platform", style = {"color: white; background-color:#1dbbf4; padding: 20px;"})),
+  titlePanel(h1("CLARUS", style = {"color: white; background-color:#1dbbf4; padding: 20px;"})),
   
   # page structure with multiple tabs
   navbarPage("Menu", id = "tabs",
@@ -45,13 +45,13 @@ ui <- fluidPage(
                         column(8,
                                shiny::HTML("<br><center> <h3> What you'll find here. </h3> </center><br>"),
                                shiny::HTML("<p><center>
-                      The Interactive XAI Platform can be used to better understand, validate and improve the decision making of Graph Neural Networks (GNN).
+                      <b>CLARUS</b> (Intera<b>c</b>tive Exp<b>l</b>ainable Pl<b>a</b>tform for G<b>r</b>aph Ne<b>u</b>ral Network<b>s</b>) can be used to better understand, validate and improve the decision making of Graph Neural Networks (GNN).
                       </p></center>"),
                                shiny::HTML("<p><center>
-                      Therefore, this software allows you to visually explore and modify the graph data in order to test the resulting effects on the GNN prediction.
+                      Therefore, CLARUS allows you to visually explore and modify the graph data in order to test the resulting effects on the GNN prediction.
                       </p></center>"),
                                shiny::HTML("<p><center>
-                      The platform has been developed for simple, undirected, homogeneous graphs which represent a biological network.
+                      CLARUS has been developed for simple, undirected, homogeneous graphs which represent a biological network.
                       </p></center>")
                         ),
                         # Symbolic image of a network
