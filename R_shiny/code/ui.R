@@ -32,7 +32,10 @@ ui <- fluidPage(
   shinyjs::inlineCSS(app_css),
   
   # header with title of the software
-  titlePanel(h1("CLARUS", style = {"color: white; background-color:#1dbbf4; padding: 20px;"})),
+  titlePanel(
+           title=div(style = {"color: white; background-color:#1dbbf4; padding: 0px;"}, tags$img(width = "338px", height = "100.5px", src="clarus_white.png"))
+           #h1("CLARUS", style = {"color: white; background-color:#1dbbf4; padding: 20px;font-family: Garet-Book;"},)
+    ),
   
   # page structure with multiple tabs
   navbarPage("Menu", id = "tabs",
