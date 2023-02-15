@@ -136,7 +136,7 @@ ui <- fluidPage(
                       fluidRow(column(12,
                                       # choose predefined datasets 
                                       wellPanel(
-                                        selectizeInput("choose_a_dataset", h4("Select one of the following datasets:"),
+                                        selectizeInput("choose_a_dataset", h4("Select a dataset:"),
                                                        choices = list("Synthetic Dataset", "KIRC Dataset", "KIRC SubNet"), selected = 1),
                                         actionButton("upload_dataset", "Select dataset", class = "btn-primary"),
                                         div(style="display:inline-block; float:right; margin-top:0.5em",a(href="datasets.zip", "Download datasets as PKL", download=NA, target="_blank")),
@@ -156,99 +156,66 @@ ui <- fluidPage(
              
              # create tab on top to select amount of nodes to be shown
              tabPanel("Interact",
-                      column(12,
-                             fluidRow(
-                               column(12,
-                                      wellPanel(
-                                        selectizeInput("choose_patient", h4("Select patient to see their graph:"), 
-                                                       choices = c()
-                                                       ),
-                                        # placeholder for warning messages
-                                        htmlOutput("warning_deletion"),
-                                        
-                                        # button to hide or show graph actions
-                                        actionButton("hide_vis_buttons", label = "Hide graph actions and information" , icon = icon("plus"))
-                                      )
-                               )
-                             )
-                      
+                      column(1,
+                             # button to hide or show graph actions
+                             actionButton("hide_info_buttons", label="", icon = icon("plus"))
                       ),
-                      fluidRow(
-                        column(12,
-                               # graph actions (sort and color)
-                               conditionalPanel(condition = "input.hide_vis_buttons % 2 == 0",
-                               column(7,
-                                      column(6,
-                                             radioButtons("radio", label = HTML("<h3>","Sort nodes by:", "</h3>"),
-                                                          choices = list("Name (A to Z)" = "name_az",
-                                                                         "Name (Z to A)" = "name_za",
-                                                                         "Degree (high to low)" = "degree_highlow",
-                                                                         "Degree (low to high)" = "degree_lowhigh",
-                                                                         "GNNExplainer (high to low)" = "GNNExplainer_highlow",
-                                                                         "GNNExplainer (low to high)" = "GNNExplainer_lowhigh",
-                                                                         "XAI_2 (high to low)" = "XAI_2_highlow",
-                                                                         "XAI_2 (low to high)" = "XAI_2_lowhigh"), 
-                                                          selected = "name_az", width = "500px"),
-                                             
-                                             
-                                      ),
-                                      column(6,
-                                             radioButtons("radio_edge_rel", label = HTML("<h3>","Select XAI Method for edges:", "</h3>"),
-                                                          choices = list("Saliency" = "saliency",
-                                                                         "Integrated Gradients" = "ig"), 
-                                                          selected = "saliency", width = "500px"),
-                                             # color nodes by attributes
-                                             selectInput("color_nodes", h3("Color the Nodes by:"),
-                                                                           choices = list(
-                                                                             "One color (default)",
-                                                                             "GNNExplainer",
-                                                                             "XAI_2",
-                                                                             "Degree")),
-                                              # print the value range of the selected attribute in the current data set
-                                              htmlOutput("range"),
-                                              # placeholder for error messages
-                                              htmlOutput("error_only_zeros")
-                                      ),
-                                      #default nodes to display is 3 (value = 3)
-                                      #default max is 100 but this gets updated as soon as node and edge data are uploaded
-                                      #then the max value will always be the amount of nodes in the data
-                                      sliderInput("slider", label = HTML("<h3>","<p style='line-height:60%'>","Select how many sorted nodes to display:","</p></h3>", "<h5>","(their next neighbours will also be displayed in the graph)","</h5>"), 
-                                                  min = 1, max = 100, value = 3, width = "500px", step=1) 
-                                    ),
-                               
-                               column(5, align = "center",
-                                      wellPanel(
-                                        fluidRow(
-                                          column(12,
-                                                 htmlOutput("sens_spec"),
-                                                 br(),
-                                                 tags$div(style = "height:250px",plotOutput("confmatrix")),
-                                                 br(),
-                                                 
-                                                 tags$div(style = "display:inline-block;margin-right:-2.3em;margin-top:-10.3em",
-                                                          conditionalPanel(condition = "input.retrain > 0 | input.predict > 0",
-                                                                           withSpinner(htmlOutput("spin"), type=4, size = 0.7, hide.ui = FALSE),
+                      column(11, 
+                             conditionalPanel(condition = "input.hide_info_buttons % 2 == 0",
+                                              wellPanel(
+                                                fluidRow(
+                                                  
+                                                  column(6, 
+                                                         selectizeInput("choose_patient", h3("Selected patient:"), 
+                                                                        choices = c()
+                                                         ),
+                                                         # placeholder for warning messages
+                                                         htmlOutput("warning_deletion"),
+                                                         
+                                                         #default nodes to display is 3 (value = 3)
+                                                         #default max is 100 but this gets updated as soon as node and edge data are uploaded
+                                                         #then the max value will always be the amount of nodes in the data
+                                                         sliderInput("slider", label = HTML("<h3>Nodes displayed: </h3>", "<h6>","(their next neighbours will also be displayed in the graph)","</h6>"), 
+                                                                     min = 1, max = 100, value = 3, width = "500px", step=1), 
+                                                         
+                                                         
+                                                         
+                                                  ),
+                                                  column(5, align = 'center',
+                                                         fluidRow(
+                                                           column(12,
+                                                                  htmlOutput("sens_spec"),
+                                                                  br(),
+                                                                  tags$div(style = "height:250px",plotOutput("confmatrix")),
+                                                                  br(),
+                                                                  
+                                                                  tags$div(style = "display:inline-block;margin-right:-2.3em;margin-top:-10.3em",
+                                                                           conditionalPanel(condition = "input.retrain > 0 | input.predict > 0",
+                                                                                            withSpinner(htmlOutput("spin"), type=4, size = 0.7, hide.ui = FALSE),
+                                                                                            
+                                                                           ),
                                                                            
-                                                          ),
-                                                          
-                                                          tags$div(style = "margin-top:10.3em;margin-right:2.3em",
-                                                                   downloadButton("download", label = "Download Results", class = "btn-success"),
-                                                                   actionButton("predict", "Predict", class = "btn-primary"),
-                                                                   actionButton("retrain", "Retrain", class = "btn-primary"),
-                                                                   # if the user wants to download the results show the following
-                                                                   htmlOutput("info_download")
-                                                          ),
-                                                          
-                                                 )
-                                                 
-                                                 
-                                          )
-                                        )
-                                      )
-                               )
-                               )
-                        )
+                                                                           tags$div(style = "margin-top:10.3em;margin-right:2.3em",
+                                                                                    downloadButton("download", label = "Download Results", class = "btn-success"),
+                                                                                    actionButton("predict", "Predict", class = "btn-primary"),
+                                                                                    actionButton("retrain", "Retrain", class = "btn-primary"),
+                                                                                    # if the user wants to download the results show the following
+                                                                                    htmlOutput("info_download")
+                                                                           ),
+                                                                           
+                                                                  )
+                                                                  
+                                                                  
+                                                           )
+                                                         )
+                                                         
+                                                  )
+                                                )
+                                                
+                                              )
+                             )
                       ),
+                      
                       fluidRow(
                         column(12,
                                
@@ -270,6 +237,37 @@ ui <- fluidPage(
                                       wellPanel(
                                         fluidRow(
                                           column(12,
+                                                  selectInput("sort", label = HTML("<h4>","Sort nodes:", "</h4>"),
+                                                              choices = list("Name (A to Z)" = "name_az",
+                                                                             "Name (Z to A)" = "name_za",
+                                                                             "Degree (high to low)" = "degree_highlow",
+                                                                             "Degree (low to high)" = "degree_lowhigh",
+                                                                             "GNNExplainer (high to low)" = "GNNExplainer_highlow",
+                                                                             "GNNExplainer (low to high)" = "GNNExplainer_lowhigh"
+                                                              )),
+                                                  
+                                                  selectInput("col_edge_rel", label = HTML("<h4>","Color edges:", "</h4>"),
+                                                              choices = list("Saliency" = "saliency",
+                                                                             "Integrated Gradients" = "ig")),
+                                                  
+                                                  # color nodes by attributes
+                                                  selectInput("color_nodes", h4("Color nodes:"),
+                                                              choices = list(
+                                                                "One color (default)",
+                                                                "GNNExplainer",
+                                                                "Degree")),
+                                                  # print the value range of the selected attribute in the current data set
+                                                  htmlOutput("range"),
+                                                  # placeholder for error messages
+                                                  htmlOutput("error_only_zeros"),     
+                                                )
+                                        )),
+                                      wellPanel(
+                                        fluidRow(
+                                          
+                                          column(12,
+                                                 
+                                                        
                                                  tags$div(style = "display:inline-block; width:100px", title = "Undo modifications. Only enabled when modifications were performed.",
                                                           actionButton("undo", "Undo", icon("undo"), class = "btn-primary"),
                                                  ),
@@ -280,19 +278,23 @@ ui <- fluidPage(
                                                  # placeholder for warning messages
                                                  htmlOutput("warning_overwriting"),
                                                  # modification options
-                                                 radioButtons("modify_options", h3("Modify Graph:"),
+                                                 radioButtons("modify_options", h4("Modify Graph:"),
                                                               choices = list(
                                                                 "Delete Node" = 1,
                                                                 "Add a new Node" = 2,
                                                                 "Delete Edge" = 3,
                                                                 "Add a new Edge" = 4
                                                                 ), 
-                                                              selected = character(0))
-                                          ),
+                                                              selected = character(0)),
+                                          
                                           # inform the user on the last change
-                                          column(12,
-                                                 htmlOutput("info_change"))
-                                        )
+                                          
+                                                 htmlOutput("info_change"),
+                                        
+                                        
+                                               
+                                      )
+                                      )
                                       ),
                                       # delete node
                                       conditionalPanel(condition = "input.modify_options == 1",
@@ -368,8 +370,10 @@ ui <- fluidPage(
                                                          #actionButton("cancel_edge_addition", "Cancel"),
                                                        )
                                       ),
-                                      tags$style(HTML("#log {height:600px}")),
-                                      verbatimTextOutput("log", placeholder = FALSE)
+                                      
+                                      ## coloring, sorting
+                                      
+                                      
                                )
                         ),
                         column(12,
@@ -387,7 +391,11 @@ ui <- fluidPage(
                                       tags$h3("Data on Nodes"),
                                       dataTableOutput("feature_overview")
                                       )
-                               )
+                               ),
+                        column(12,
+                               tags$style(HTML("#log {height:600px}")),
+                               verbatimTextOutput("log", placeholder = FALSE)
+                        )
                       )
              )
   )

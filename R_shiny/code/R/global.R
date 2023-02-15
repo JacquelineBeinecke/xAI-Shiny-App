@@ -857,8 +857,8 @@ calculate_small_tables <- function(nodes, edges, radio, slider){
 disable_all_action_buttons <- function(){
   # graph manipulation buttons
   shinyjs::disable("choose_patient")
-  shinyjs::disable("radio")
-  shinyjs::disable("radio_edge_rel")
+  shinyjs::disable("sort")
+  shinyjs::disable("col_edge_rel")
   shinyjs::disable("color_nodes")
   shinyjs::disable("slider")
   
@@ -892,8 +892,8 @@ disable_all_action_buttons <- function(){
 enable_all_action_buttons <- function(){
   # graph manipulation buttons
   shinyjs::enable("choose_patient")
-  shinyjs::enable("radio")
-  shinyjs::enable("radio_edge_rel")
+  shinyjs::enable("sort")
+  shinyjs::enable("col_edge_rel")
   shinyjs::enable("color_nodes")
   shinyjs::enable("slider")
   

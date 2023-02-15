@@ -174,7 +174,9 @@ server <- function(input, output, session) {
      updateNumericInput(session, "nodefeature_value", value = 0)
   
      # reset the select Input of color nodes by
+     xai_selected <- input$color_nodes
      updateSelectInput(session, "color_nodes", selected = "One color (default)")
+     updateSelectInput(session, "color_nodes", selected = xai_selected)
   
      calculate_smaller_node_and_edge_list()
   
@@ -190,7 +192,7 @@ server <- function(input, output, session) {
   #######################################################
   
   observeEvent(ignoreInit = T,c(
-    input$radio,
+    input$sort,
     input$slider
   ), {
     print("update nodelist because slider or radio changed")
@@ -200,45 +202,45 @@ server <- function(input, output, session) {
   ###################################################
   ######## dis/enable/update tabs/functions #########
   ###################################################
- 
+ '
   # update radio buttons based on if rel_pos_neg or rel_pos is present
   observeEvent(ignoreInit = T,input$choose_patient,{
     print("update radio buttons")
     if(!("XAI_2" %in% colnames(node_rel) & !("GNNExplainer" %in% colnames(node_rel)))){
-      shinyjs::disable("radio")
-      updateRadioButtons(session, "radio",
+      shinyjs::disable("sort")
+      updateSelectInput(session, "sort",
                        choices = list("Name (A to Z)" = "name_az",
                                       "Name (Z to A)" = "name_za",
                                       "Degree (high to low)" = "degree_highlow",
                                       "Degree (low to high)" = "degree_lowhigh"), 
-                       selected = "degree_highlow")
+                       selected = "name_az")
  
     }
     if(!("GNNExplainer" %in% colnames(node_rel)) & ("XAI_2" %in% colnames(node_rel))){
-      shinyjs::enable("radio")
-       updateRadioButtons(session, "radio",
+      shinyjs::enable("sort")
+      updateSelectInput(session, "sort",
                           choices = list("Name (A to Z)" = "name_az",
                                          "Name (Z to A)" = "name_za",
                                          "Degree (high to low)" = "degree_highlow",
                                          "Degree (low to high)" = "degree_lowhigh",
                                          "XAI_2 (high to low)" = "XAI_2_highlow",
                                          "XAI_2 (low to high)" = "XAI_2_lowhigh"), 
-                          selected = "XAI_2_highlow")
+                          selected = "name_az")
     }
     if(("GNNExplainer" %in% colnames(node_rel)) & !("XAI_2" %in% colnames(node_rel))){
-      shinyjs::enable("radio")
-      updateRadioButtons(session, "radio",
+      shinyjs::enable("sort")
+      updateSelectInput(session, "sort",
                          choices = list("Name (A to Z)" = "name_az",
                                         "Name (Z to A)" = "name_za",
                                         "Degree (high to low)" = "degree_highlow",
                                         "Degree (low to high)" = "degree_lowhigh",
                                         "GNNExplainer (high to low)" = "GNNExplainer_highlow",
                                         "GNNExplainer (low to high)" = "GNNExplainer_lowhigh"), 
-                         selected = "GNNExplainer_highlow")
+                         selected = "name_az")
     }
     if(("GNNExplainer" %in% colnames(node_rel)) & ("XAI_2" %in% colnames(node_rel))){
-      shinyjs::enable("radio")
-      updateRadioButtons(session, "radio",
+      shinyjs::enable("sort")
+      updateSelectInput(session, "sort",
                          choices = list("Name (A to Z)" = "name_az",
                                         "Name (Z to A)" = "name_za",
                                         "Degree (high to low)" = "degree_highlow",
@@ -247,10 +249,10 @@ server <- function(input, output, session) {
                                         "GNNExplainer (low to high)" = "GNNExplainer_lowhigh",
                                         "XAI_2 (high to low)" = "XAI_2_highlow",
                                         "XAI_2 (low to high)" = "XAI_2_lowhigh"), 
-                         selected = "GNNExplainer_highlow")
+                         selected = "name_az")
     }
   })
-  
+  '
   # initially disable Interact tab by start of the shiny App 
   shinyjs::js$disableTab("Interact")
   
@@ -310,7 +312,9 @@ server <- function(input, output, session) {
     edge_rel <<- getEdgeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     
     # reset the select Input of color nodes by
+    xai_selected <- input$color_nodes
     updateSelectInput(session, "color_nodes", selected = "One color (default)")
+    updateSelectInput(session, "color_nodes", selected = xai_selected)
     
     
     # remove warning message about changes being removed when switching patients
@@ -431,7 +435,9 @@ server <- function(input, output, session) {
     edge_rel <<- getEdgeRelevances(pat_id, current_graph_ids[pat_id+1], input$choose_a_dataset)
     
     # reset the select Input of color nodes by
+    xai_selected <- input$color_nodes
     updateSelectInput(session, "color_nodes", selected = "One color (default)")
+    updateSelectInput(session, "color_nodes", selected = xai_selected)
 
     # remove warning message about changes being removed when switching patients
     output$warning_deletion <- renderUI({
@@ -497,7 +503,7 @@ server <- function(input, output, session) {
     input$backward,
     input$forward,
     input$slider,
-    input$radio,
+    input$sort,
     input$choose_patient
     ), {
     print("vis graph")
@@ -511,7 +517,7 @@ server <- function(input, output, session) {
       if(nrow(small_edgelist) != 0){
         # update edge tooltip title (only if edges are given)
         small_edgelist$title <- update_edge_tooltip(nodelist_table, small_edgelist)
-        small_edgelist$color <- get_rel_colors_for_edge(small_edgelist, input$radio_edge_rel)
+        small_edgelist$color <- get_rel_colors_for_edge(small_edgelist, input$col_edge_rel)
         
         set.seed(3414) # set seed so the graph always looks the same for the same nodes and edges
         visNetwork(nodes, small_edgelist) %>%
@@ -548,6 +554,7 @@ server <- function(input, output, session) {
           )
         
       }
+      
     })
   })
   
@@ -602,7 +609,9 @@ server <- function(input, output, session) {
     updateNumericInput(session, "nodefeature_value", value = 0)
     
     # reset the select Input of color nodes by
+    xai_selected <- input$color_nodes
     updateSelectInput(session, "color_nodes", selected = "One color (default)")
+    updateSelectInput(session, "color_nodes", selected = xai_selected)
     
     # get the amount of modified graphs saved for this patient
     max_graph <- get_max_graphs(pat_id)
@@ -687,7 +696,9 @@ server <- function(input, output, session) {
     updateNumericInput(session, "nodefeature_value", value = 0)
     
     # reset the select Input of color nodes by
+    xai_selected <- input$color_nodes
     updateSelectInput(session, "color_nodes", selected = "One color (default)")
+    updateSelectInput(session, "color_nodes", selected = xai_selected)
     
     # get the amount of modified graphs saved for this patient
     max_graph <- get_max_graphs(pat_id)
@@ -724,7 +735,7 @@ server <- function(input, output, session) {
   # Initialize first dropdown of modification options ----------------------------------
   observeEvent(ignoreInit = T,c(
     input$choose_patient,
-    input$radio,
+    input$sort,
     input$slider,
     input$backward,
     input$forward
@@ -1901,10 +1912,10 @@ server <- function(input, output, session) {
   ######## select xai method for edges and color #########
   ########################################################
   
-  observeEvent(ignoreInit = T, c(input$radio_edge_rel), {
+  observeEvent(ignoreInit = T, c(input$col_edge_rel), {
     # update edge tooltip title (only if edges are given)
     small_edgelist$title <- update_edge_tooltip(nodelist_table, small_edgelist)
-    small_edgelist$color <- get_rel_colors_for_edge(small_edgelist, input$radio_edge_rel)
+    small_edgelist$color <- get_rel_colors_for_edge(small_edgelist, input$col_edge_rel)
 
     # update graph
     visNetworkProxy("graph") %>%
@@ -2020,7 +2031,7 @@ server <- function(input, output, session) {
   }
   
   # only calculate new legend in these cases 
-  observeEvent(ignoreInit = T, c(input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo, input$slider, input$radio),{
+  observeEvent(ignoreInit = T, c(input$color_nodes, input$confirm_edge_deletion, input$confirm_edge_addition, input$confirm_node_addition, input$confirm_node_deletion, input$undo, input$slider, input$sort),{
     print("update node colors and legend")
     calculate_legend_and_color_nodes()
   })
@@ -2039,54 +2050,22 @@ server <- function(input, output, session) {
   })
 
   
-  ###################################################################
-  ######### Reset Coloring when Slider or Radio is changed ##########
-  ###################################################################
+  ########################################################################
+  ######### Reset Node Coloring when Slider or Radio is changed ##########
+  ########################################################################
   
   observeEvent(ignoreInit = T,c( 
     # the events that trigger this
     input$choose_patient,
     input$slider,
-    input$radio,
-    input$radio_edge_rel
+    input$sort,
+    input$col_edge_rel
   ), {
     print("reset coloring")
-    if(("GNNExplainer" %in% colnames(node_rel)) & ("XAI_2" %in% colnames(node_rel))){
-      updateSelectInput(session, "color_nodes",
-                        choices = list(
-                          "One color (default)",
-                          "GNNExplainer",
-                          "XAI_2",
-                          "Degree"),
-                        selected = "One color (default)"
-      )
-    }
-    if(!("GNNExplainer" %in% colnames(node_rel)) & ("XAI_2" %in% colnames(node_rel))){
-      updateSelectInput(session, "color_nodes",
-                        choices = list(
-                          "One color (default)",
-                          "XAI_2",
-                          "Degree"),
-                        selected = "One color (default)"
-      )
-    }
-    if(("GNNExplainer" %in% colnames(node_rel)) & !("XAI_2" %in% colnames(node_rel))){
-      updateSelectInput(session, "color_nodes",
-                        choices = list(
-                          "One color (default)",
-                          "GNNExplainer",
-                          "Degree"),
-                        selected = "One color (default)"
-      )
-    }
-    if(!("GNNExplainer" %in% colnames(node_rel)) & !("XAI_2" %in% colnames(node_rel))){
-      updateSelectInput(session, "color_nodes",
-                        choices = list(
-                          "One color (default)",
-                          "Degree"),
-                        selected = "One color (default)"
-      )
-    }
+    # reset the select Input of color nodes by
+    xai_selected <- input$color_nodes
+    updateSelectInput(session, "color_nodes", selected = "One color (default)")
+    updateSelectInput(session, "color_nodes", selected = xai_selected)
     
   })
   
@@ -2101,7 +2080,7 @@ server <- function(input, output, session) {
   calculate_smaller_node_and_edge_list <- function(){ 
     print("inside eventReactive")
     # calculate small node and edge lists
-    calculate_small_tables(nodelist_table, edgelist_table, input$radio, input$slider)
+    calculate_small_tables(nodelist_table, edgelist_table, input$sort, input$slider)
     
     # update node and edge table
     output$feature_overview <- renderDataTable({
@@ -2133,13 +2112,13 @@ server <- function(input, output, session) {
   ############################################
   
   # the first time this button gets pressed its value is 1 and then the value always get added +1
-  observeEvent(input$hide_vis_buttons,{
+  observeEvent(input$hide_info_buttons,{
     # if the value of the action button is uneven hide the action buttons
-    if(input$hide_vis_buttons[1] %% 2 != 0){
-      updateActionButton(session, "hide_vis_buttons", label = "Show graph actions and information", icon = icon("minus"))
+    if(input$hide_info_buttons[1] %% 2 != 0){
+      updateActionButton(session, "hide_info_buttons", label="", icon = icon("minus"))
     # if the value of the action button is even show the action buttons
     }else{
-      updateActionButton(session, "hide_vis_buttons", label = "Hide graph actions and information" , icon = icon("plus"))
+      updateActionButton(session, "hide_info_buttons", label="", icon = icon("plus"))
     }
   })
   
